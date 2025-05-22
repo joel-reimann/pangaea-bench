@@ -1,0 +1,44 @@
+what I did 21.05
+
+# AGBD Pipeline Debugging & Data Normalization Diary (2025-05-21)
+
+## Context & Problem
+- The AGBD model inputs were all 0/1 or otherwise non-informative, causing model training and evaluation to fail.
+- Suspected a mismatch between the normalization stats file and the actual scale of the raw HDF5 data (e.g., Digital Numbers (DN) vs. reflectance).
+
+## Diagnosis & Investigation
+- Inspected the normalization logic in both the main pipeline (`pangaea/datasets/agbd.py`) and the debug scripts.
+- Compared the statistics in the existing `statistics_subset_2019-2020-v4_new.pkl` file to the actual min/max/mean/std of the raw HDF5 patches.
+- Confirmed that the stats file did not match the true data scale, leading to all-constant or saturated normalized inputs.
+
+## Solution: Recompute Normalization Stats
+- Wrote and ran a script (`compute_agbd_stats.py`) on the ETH Euler cluster to compute new normalization statistics directly from the raw HDF5 patches.
+  - The script loaded each patch, converted DNs to reflectance (as in the AGBD pipeline), and computed per-band min, max, mean, std, and percentiles.
+  - Saved the new stats as `agbd_stats_from_raw.pkl`.
+- Validated the new stats by comparing them to the debug script's output and by visualizing a few normalized patches.
+
+## Pipeline Update
+- Updated the main pipeline code (`agbd.py`) to use the new stats file for normalization.
+  - Added clear comments explaining the change and rationale for future reference and supervisor discussion.
+  - Documented the process and rationale for switching away from the original stats file, to ensure reproducibility and facilitate future troubleshooting.
+- Copied the new stats file to the correct location in the project directory.
+
+## Validation
+- Re-ran the pipeline with the corrected normalization.
+- Inspected the model inputs and outputs using debug scripts and visualization tools.
+- Confirmed that the normalization and model outputs were now correct and meaningful.
+
+## Next Steps
+- Keep the new stats file under version control and document any future changes.
+- Continue to validate normalization and data integrity after any pipeline or data update.
+- (Optional) Automate normalization stats checks as part of the data pipeline.
+
+## Miscellaneous
+- Also plan to fix the weird memory logging in the SLURM scripts for better resource monitoring.
+
+---
+
+**Prepared by:** [Your Name or Team]
+**Date:** 2025-05-21
+
+

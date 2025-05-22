@@ -11,9 +11,7 @@ train:
         - _target_: pangaea.engine.data_preprocessor.AddTemporalDim
         # 3. Filter bands (already handled by AGBDDataset selecting Prithvi bands)
         - _target_: pangaea.engine.data_preprocessor.BandFilter
-        # 4. Normalize (using MinMax for regression as in reg_default)
-        - _target_: pangaea.engine.data_preprocessor.NormalizeMinMax
-        # 5. Pad bands if necessary (e.g., if encoder expects more bands than provided)
+        # 4. Pad bands if necessary (e.g., if encoder expects more bands than provided)
         - _target_: pangaea.engine.data_preprocessor.BandPadding
 
 val:
@@ -25,7 +23,6 @@ val:
           resize_target: False
         - _target_: pangaea.engine.data_preprocessor.AddTemporalDim
         - _target_: pangaea.engine.data_preprocessor.BandFilter
-        - _target_: pangaea.engine.data_preprocessor.NormalizeMinMax
         - _target_: pangaea.engine.data_preprocessor.BandPadding
 
 test:
@@ -37,5 +34,4 @@ test:
           resize_target: False
         - _target_: pangaea.engine.data_preprocessor.AddTemporalDim
         - _target_: pangaea.engine.data_preprocessor.BandFilter
-        - _target_: pangaea.engine.data_preprocessor.NormalizeMinMax
         - _target_: pangaea.engine.data_preprocessor.BandPadding

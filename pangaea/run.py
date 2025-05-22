@@ -272,6 +272,17 @@ def main(cfg: DictConfig) -> None:
 
     # get datasets
     raw_test_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="test")
+    # Subset test set for fast debugging if limited_label_test is set
+    if hasattr(cfg, "limited_label_test") and 0 < cfg.limited_label_test < 1:
+        indices = get_subset_indices(
+            raw_test_dataset,
+            task=task_name if 'task_name' in locals() else None,
+            strategy=cfg.limited_label_strategy,
+            label_fraction=cfg.limited_label_test,
+            num_bins=cfg.stratification_bins,
+            logger=logger,
+        )
+        raw_test_dataset = GeoFMSubset(raw_test_dataset, indices)
     test_dataset = GeoFMDataset(raw_test_dataset, test_preprocessor)
 
     test_loader = DataLoader(

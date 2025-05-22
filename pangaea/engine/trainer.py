@@ -33,6 +33,9 @@ class Trainer:
         eval_interval: int,
         log_interval: int,
         best_metric_key: str,
+        save_tensors: bool = False,
+        tensor_save_dir: str | pathlib.Path = None,
+        max_saved_tensors: int = None,  # Added argument
     ):
         """Initialize the Trainer.
 
@@ -52,6 +55,8 @@ class Trainer:
             eval_interval (int): interval to evaluate the model.
             log_interval (int): interval to log the training information.
             best_metric_key (str): metric that determines best checkpoints.
+            save_tensors (bool, optional): whether to save input/output tensors. Defaults to False.
+            tensor_save_dir (str | pathlib.Path, optional): directory to save tensors. Defaults to None.
         """
         self.rank = int(os.environ["RANK"])
         self.criterion = criterion
@@ -70,6 +75,10 @@ class Trainer:
         self.eval_interval = eval_interval
         self.log_interval = log_interval
         self.best_metric_key = best_metric_key
+        self.save_tensors = save_tensors
+        self.tensor_save_dir = tensor_save_dir
+        self.max_saved_tensors = max_saved_tensors
+        self._saved_tensors_count = 0
 
         self.training_stats = {
             name: RunningAverageMeter(length=self.batch_per_epoch)
@@ -130,6 +139,13 @@ class Trainer:
         self.model.train()
 
         end_time = time.time()
+        # --- Tensor logging: select which batches to save ---
+        n_batches = len(self.train_loader)
+        # Always save first 2 batches, and 2 random others (if enough batches)
+        save_batches = set(range(min(2, n_batches)))
+        if n_batches > 4:
+            import random
+            save_batches.update(random.sample(range(2, n_batches), min(2, n_batches - 2)))
         for batch_idx, data in enumerate(self.train_loader):
             image, target = data["image"], data["target"]
             image = {modality: value.to(self.device) for modality, value in image.items()}
@@ -174,6 +190,23 @@ class Trainer:
                     },
                     step=epoch * len(self.train_loader) + batch_idx,
                 )
+
+            # --- Tensor logging: save selected batches only, robust to errors ---
+            if self.save_tensors and batch_idx in save_batches:
+                try:
+                    # For compatibility, save pred as model output (not post-processed)
+                    self.maybe_save_tensor(
+                        image=image,
+                        pred=logits,
+                        gt=target,
+                        logits=logits,
+                        batch_idx=batch_idx,
+                        epoch=epoch,
+                        mode="train",
+                        extra_meta={"loss": float(loss.item())}
+                    )
+                except Exception as e:
+                    self.logger.error(f"[TensorSave] Exception in maybe_save_tensor: {e}")
 
             self.training_stats["batch_time"].update(time.time() - end_time)
             end_time = time.time()
@@ -353,6 +386,54 @@ class Trainer:
         for v in self.training_metrics.values():
             v.reset()
 
+    def maybe_save_tensor(self, image, pred, gt, logits=None, batch_idx=None, epoch=None, mode="train", extra_meta=None):
+        """
+        Save a representative batch of tensors for later visualization/debugging.
+        Only saves if save_tensors is True, tensor_save_dir is set, and rank==0.
+        Saves a dict with input, pred, gt, logits, and metadata for downstream compatibility.
+        Args:
+            image (dict): Input modalities (dict of tensors)
+            pred (Tensor): Model prediction
+            gt (Tensor): Ground truth
+            logits (Tensor, optional): Raw model logits (if available)
+            batch_idx (int, optional): Batch index
+            epoch (int, optional): Epoch number
+            mode (str, optional): Mode ("train", "eval", "finetune", etc.)
+            extra_meta (dict, optional): Any extra metadata to include
+        """
+        if not self.save_tensors or self.tensor_save_dir is None or self.rank != 0:
+            return
+        if self.max_saved_tensors is not None and self._saved_tensors_count >= self.max_saved_tensors:
+            if self._saved_tensors_count == self.max_saved_tensors:
+                self.logger.warning(f"[TensorSave] Reached max_saved_tensors={self.max_saved_tensors}. No further tensors will be saved.")
+                self._saved_tensors_count += 1  # Prevent repeated warnings
+            return
+        try:
+            os.makedirs(self.tensor_save_dir, exist_ok=True)
+            meta = {
+                "mode": mode,
+                "epoch": epoch,
+                "batch_idx": batch_idx,
+                "saved_tensor_idx": self._saved_tensors_count,
+                "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+            }
+            if extra_meta is not None:
+                meta.update(extra_meta)
+            batch_save = {
+                "input": {k: v.detach().cpu() for k, v in image.items()},
+                "pred": pred.detach().cpu(),
+                "gt": gt.detach().cpu(),
+                "logits": logits.detach().cpu() if logits is not None else None,
+                "meta": meta,
+            }
+            fname = f"{mode}_epoch{epoch}_batch{batch_idx}_idx{self._saved_tensors_count}.pt"
+            save_path = os.path.join(self.tensor_save_dir, fname)
+            torch.save(batch_save, save_path)
+            self.logger.info(f"[TensorSave] Saved tensor batch to {save_path}")
+            self._saved_tensors_count += 1
+        except Exception as e:
+            self.logger.error(f"[TensorSave] Failed to save tensor batch: {e}")
+
 
 class SegTrainer(Trainer):
     def __init__(
@@ -372,6 +453,9 @@ class SegTrainer(Trainer):
         eval_interval: int,
         log_interval: int,
         best_metric_key: str,
+        save_tensors: bool = False,
+        tensor_save_dir: str | pathlib.Path = None,
+        max_saved_tensors: int = None,  # Added argument
     ):
         """Initialize the Trainer for segmentation task.
         Args:
@@ -407,6 +491,9 @@ class SegTrainer(Trainer):
             eval_interval=eval_interval,
             log_interval=log_interval,
             best_metric_key=best_metric_key,
+            save_tensors=save_tensors,
+            tensor_save_dir=tensor_save_dir,
+            max_saved_tensors=max_saved_tensors,  # Pass argument
         )
 
         self.training_metrics = {
@@ -498,6 +585,9 @@ class RegTrainer(Trainer):
         eval_interval: int,
         log_interval: int,
         best_metric_key: str,
+        save_tensors: bool = False,
+        tensor_save_dir: str | pathlib.Path = None,
+        max_saved_tensors: int = None,  # Added argument
     ):
         """Initialize the Trainer for regression task.
         Args:
@@ -533,6 +623,9 @@ class RegTrainer(Trainer):
             eval_interval=eval_interval,
             log_interval=log_interval,
             best_metric_key=best_metric_key,
+            save_tensors=save_tensors,
+            tensor_save_dir=tensor_save_dir,
+            max_saved_tensors=max_saved_tensors,  # Pass argument
         )
 
         self.training_metrics = {

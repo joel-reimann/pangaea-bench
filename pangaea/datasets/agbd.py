@@ -9,6 +9,7 @@ from torch.utils.data import Dataset
 from os.path import join, exists
 from datetime import timedelta
 from collections import Counter # <<< ADD THIS IMPORT
+import glob
 
 
 # Assuming pangaea.datasets.base defines RawGeoFMDataset correctly
@@ -179,6 +180,14 @@ class AGBDDataset(RawGeoFMDataset):
     Loads only Sentinel-2 optical bands for Prithvi and the AGBD target.
     Uses sample-based indexing.
     """
+    # --- Constants for additional bands/modalities ---
+    S1_BANDS = ['VV', 'VH']
+    ALOS_BANDS = ['HH', 'HV']
+    DEM_BAND = 'DEM'
+    LC_BAND = 'LC'
+    CH_BAND = 'CH'
+    # Add to class as static/class variables for clarity
+
     def __init__(self, root_path, split, bands, img_size, # From Pangaea config
                  # Required by RawGeoFMDataset base
                  dataset_name, multi_modal, multi_temporal, classes, num_classes,
@@ -187,6 +196,8 @@ class AGBDDataset(RawGeoFMDataset):
                  # Specific to AGBD logic (add to config)
                  years=[2019, 2020], version=4, norm_strat='pct',
                  debug=False,
+                 h5_path=None, # NEW: allow override
+                 h5_pattern=None, # NEW: allow pattern override
                  **kwargs): # Catch any other args
 
         # Call Pangaea base class init FIRST
@@ -200,7 +211,7 @@ class AGBDDataset(RawGeoFMDataset):
         )
 
         # --- AGBD Specific Init Logic ---
-        self.h5_path = self.root_path # Assuming H5 files are directly in root_path
+        self.h5_path = h5_path if h5_path is not None else self.root_path
         self.norm_path = self.root_path # Assuming PKL files are directly in root_path
         self.mapping_path = self.root_path # Assuming biomes_splits pkl is in root_path
 
@@ -209,6 +220,7 @@ class AGBDDataset(RawGeoFMDataset):
         self.version = version
         self.norm_strat = norm_strat
         self.debug = debug
+        self.h5_pattern = h5_pattern or f"*v{self.version}_*-20.h5"
 
         # Load mapping file (defines train/val/test split based on tile names)
         mapping_file = join(self.mapping_path, 'biomes_splits_to_name.pkl')
@@ -221,11 +233,11 @@ class AGBDDataset(RawGeoFMDataset):
             logging.error(f"Error loading mapping file {mapping_file}: {e}")
             raise
 
-        # Get HDF5 filenames based on years and debug flag
-        self.fnames = []
-        for year in self.years:
-            num_files = 2 if self.debug else 20
-            self.fnames += [f'data_subset-{year}-v{self.version}_{i}-20.h5' for i in range(num_files)]
+        # Get HDF5 filenames based on pattern
+        all_files = sorted(glob.glob(os.path.join(self.h5_path, self.h5_pattern)))
+        self.fnames = [os.path.basename(f) for f in all_files]
+        if self.debug:
+            self.fnames = self.fnames[:4]  # Only a few files for debug
 
         # Check existence of expected HDF5 files (optional, for early warning)
         for fname in self.fnames:
@@ -284,9 +296,64 @@ class AGBDDataset(RawGeoFMDataset):
         logging.info(f"Initialized AGBDDataset split '{self.split}'. Total samples: {self.length}")
         # --- End AGBD Specific Init ---
 
-    def __len__(self):
-        """Returns the total number of samples in this split."""
-        return self.length
+    def _get_band_indices(self, band_list, h5_band_order):
+        """Helper to get indices of requested bands in HDF5 band order."""
+        indices = []
+        for band in band_list:
+            if band in h5_band_order:
+                indices.append(h5_band_order.index(band))
+            else:
+                logging.warning(f"Band {band} not found in HDF5 band order {h5_band_order}")
+        return indices
+
+    # --- Helper: Modular band loading and normalization ---
+    def _load_and_normalize(self, f, tile_name, group, band_names, norm_key, norm_strat, nodata=None, postprocess=None):
+        """Load and normalize a set of bands from HDF5, return (H, W, C) float32 array."""
+        try:
+            # Get band order from HDF5 attributes (cache per group)
+            cache_attr = f'_order_in_h5_{group}'
+            if not hasattr(self, cache_attr):
+                setattr(self, cache_attr, list(f[tile_name][group].attrs['order']))
+            order_in_h5 = getattr(self, cache_attr)
+            indices = [order_in_h5.index(b) for b in band_names]
+            loaded_band_names = [order_in_h5[i] for i in indices]
+            # Extract patch (H, W, C)
+            arr = f[tile_name][group][self._idx_in_tile, self.h5_patch_center - self.h5_patch_window : self.h5_patch_center + self.h5_patch_window + 1, self.h5_patch_center - self.h5_patch_window : self.h5_patch_center + self.h5_patch_window + 1, :]
+            arr = arr[:, :, indices].astype(np.float32)
+            if postprocess:
+                arr = postprocess(arr)
+            arr = normalize_bands(arr, self.norm_values[norm_key], loaded_band_names, norm_strat, nodata)
+            return arr
+        except Exception as e:
+            logging.error(f"Error loading group {group} bands {band_names} from tile {tile_name}: {e}")
+            raise
+
+    def _load_single_band(self, f, tile_name, group, norm_key, norm_strat, nodata=None, postprocess=None):
+        """Load and normalize a single-band raster (DEM, LC, CH). Returns (H, W, 1) float32 array."""
+        try:
+            arr = f[tile_name][group][self._idx_in_tile, self.h5_patch_center - self.h5_patch_window : self.h5_patch_center + self.h5_patch_window + 1, self.h5_patch_center - self.h5_patch_window : self.h5_patch_center + self.h5_patch_window + 1]
+            arr = arr.astype(np.float32)
+            if postprocess:
+                arr = postprocess(arr)
+            arr = normalize_data(arr, self.norm_values[norm_key], norm_strat, nodata)
+            arr = arr[..., None]  # (H, W, 1)
+            return arr
+        except Exception as e:
+            logging.error(f"Error loading group {group} from tile {tile_name}: {e}")
+            raise
+
+    def _load_metadata(self, f, tile_name, idx_in_tile):
+        """Load metadata fields (lat, lon, doy, etc) as a dict."""
+        try:
+            meta = {}
+            meta_fields = ['lat', 'lon', 'doy', 'year', 'biome', 'shot_number']
+            for field in meta_fields:
+                if field in f[tile_name]['GEDI']:
+                    meta[field] = f[tile_name]['GEDI'][field][idx_in_tile]
+            return meta
+        except Exception as e:
+            logging.error(f"Error loading metadata for tile {tile_name}: {e}")
+            return {}
 
     def __getitem__(self, n):
         """Loads the n-th sample (0-based index) of the dataset split."""
@@ -311,79 +378,98 @@ class AGBDDataset(RawGeoFMDataset):
         f = self.handles[file_name]
 
         try:
-            # --- Load S2 Bands ---
-            # Get S2 band order from HDF5 attributes (cache it)
-            if not hasattr(self, 's2_order_in_h5'):
+            # --- Save idx_in_tile for helpers ---
+            self._idx_in_tile = idx_in_tile
+
+            # --- S2 (Prithvi) ---
+            s2_bands = PRITHVI_BANDS
+            s2_post = lambda arr: arr / 10000.0  # DN to reflectance
+            s2_arr = self._load_and_normalize(f, tile_name, 'S2_bands', s2_bands, 'S2_bands', self.norm_strat, NODATAVALS['S2_bands'], postprocess=s2_post)
+            s2_tensor = torch.from_numpy(s2_arr.copy()).permute(2, 0, 1).unsqueeze(1)  # (C, T=1, H, W)
+
+            # --- Helper to check if group is a dataset ---
+            def _is_dataset(f, tile_name, group):
                 try:
-                    self.s2_order_in_h5 = list(f[tile_name]['S2_bands'].attrs['order'])
-                    # Get indices corresponding to the required Prithvi bands within the HDF5 band order
-                    self.prithvi_indices_in_h5 = [self.s2_order_in_h5.index(band) for band in PRITHVI_BANDS]
-                    # Verify we found all 6
-                    if len(self.prithvi_indices_in_h5) != len(PRITHVI_BANDS):
-                         missing = set(PRITHVI_BANDS) - set(self.s2_order_in_h5)
-                         logging.error(f"Could not find all required Prithvi bands in HDF5 band order {self.s2_order_in_h5}. Missing: {missing}")
-                         raise ValueError(f"Missing required Prithvi bands in HDF5: {missing}")
-                    # Store the names of the bands we are actually loading in the correct order
-                    self.loaded_band_names = [self.s2_order_in_h5[i] for i in self.prithvi_indices_in_h5]
+                    return group in f[tile_name] and isinstance(f[tile_name][group], h5py.Dataset)
+                except Exception:
+                    return False
 
-                except KeyError as e:
-                     logging.error(f"Could not read S2 band order or data from HDF5 tile {tile_name}: {e}")
-                     raise
-                except ValueError as e:
-                     logging.error(f"Error finding Prithvi band indices {PRITHVI_BANDS} in HDF5 order {self.s2_order_in_h5}: {e}")
-                     raise
+            # --- S1 ---
+            s1_tensor = None
+            if _is_dataset(f, tile_name, 'S1_bands') and 'S1_bands' in self.norm_values:
+                s1_bands = list(f[tile_name]['S1_bands'].attrs['order'])
+                s1_arr = self._load_and_normalize(f, tile_name, 'S1_bands', s1_bands, 'S1_bands', self.norm_strat, NODATAVALS.get('S1_bands', 0))
+                s1_tensor = torch.from_numpy(s1_arr.copy()).permute(2, 0, 1).unsqueeze(1)
+            elif 'S1_bands' in f[tile_name]:
+                logging.warning(f"S1_bands group present in HDF5 but not a dataset or missing normalization stats. Skipping S1.")
 
-            # Extract the full 25x25 patch for all S2 bands stored in HDF5
-            # Shape: (H, W, C_all) = (25, 25, num_all_s2_bands)
-            s2_bands_all = f[tile_name]['S2_bands'][idx_in_tile,
-                                                    self.h5_patch_center - self.h5_patch_window : self.h5_patch_center + self.h5_patch_window + 1,
-                                                    self.h5_patch_center - self.h5_patch_window : self.h5_patch_center + self.h5_patch_window + 1,
-                                                    :] # Load all bands first
+            # --- ALOS ---
+            alos_tensor = None
+            if _is_dataset(f, tile_name, 'ALOS_bands') and 'ALOS_bands' in self.norm_values:
+                alos_bands = list(f[tile_name]['ALOS_bands'].attrs['order'])
+                alos_arr = self._load_and_normalize(f, tile_name, 'ALOS_bands', alos_bands, 'ALOS_bands', self.norm_strat, NODATAVALS['ALOS_bands'])
+                alos_tensor = torch.from_numpy(alos_arr.copy()).permute(2, 0, 1).unsqueeze(1)
+            elif 'ALOS_bands' in f[tile_name]:
+                logging.warning(f"ALOS_bands group present in HDF5 but not a dataset or missing normalization stats. Skipping ALOS.")
 
-            # Select only the required Prithvi bands using the cached indices
-            # Shape: (H, W, C_prithvi) = (25, 25, 6)
-            s2_bands_prithvi = s2_bands_all[:, :, self.prithvi_indices_in_h5].astype(np.float32)
+            # --- DEM ---
+            dem_tensor = None
+            if _is_dataset(f, tile_name, 'DEM') and 'DEM' in self.norm_values:
+                dem_arr = self._load_single_band(f, tile_name, 'DEM', 'DEM', self.norm_strat, NODATAVALS['DEM'])
+                dem_tensor = torch.from_numpy(dem_arr.copy()).permute(2, 0, 1).unsqueeze(1)
+            elif 'DEM' in f[tile_name]:
+                logging.warning(f"DEM group present in HDF5 but not a dataset or missing normalization stats. Skipping DEM.")
 
-            # Normalize the selected bands
-            # normalize_bands expects (H, W, C)
-            s2_bands_normalized = normalize_bands(s2_bands_prithvi,
-                                                  self.norm_values['S2_bands'], # Use stats dict for S2 bands
-                                                  self.loaded_band_names, # Pass names of the 6 loaded bands
-                                                  self.norm_strat,
-                                                  NODATAVALS['S2_bands'])
+            # --- LC ---
+            lc_tensor = None
+            if _is_dataset(f, tile_name, 'LC') and 'LC' in self.norm_values:
+                lc_arr = self._load_single_band(f, tile_name, 'LC', 'LC', self.norm_strat, NODATAVALS['LC'])
+                lc_tensor = torch.from_numpy(lc_arr.copy()).permute(2, 0, 1).unsqueeze(1)
+            elif 'LC' in f[tile_name]:
+                logging.warning(f"LC group present in HDF5 but not a dataset or missing normalization stats. Skipping LC.")
 
-             # Convert to tensor (C, H, W)
-            s2_tensor_chw = torch.from_numpy(s2_bands_normalized.copy()).permute(2, 0, 1)
+            # --- CH ---
+            ch_tensor = None
+            if _is_dataset(f, tile_name, 'CH') and 'CH' in self.norm_values:
+                ch_arr = self._load_single_band(f, tile_name, 'CH', 'CH', self.norm_strat, NODATAVALS['CH'])
+                ch_tensor = torch.from_numpy(ch_arr.copy()).permute(2, 0, 1).unsqueeze(1)
+            elif 'CH' in f[tile_name]:
+                logging.warning(f"CH group present in HDF5 but not a dataset or missing normalization stats. Skipping CH.")
 
-            # --- Add Time Dimension ---
-            # Unsqueeze dim 1 to get (C, T, H, W) where T=1
-            s2_tensor_cthw = s2_tensor_chw.unsqueeze(1)
-            # --- End Add Time Dimension ---
-
-            # Get scalar AGBD value
+            # --- Target (AGBD) ---
             agbd_scalar = f[tile_name]['GEDI']['agbd'][idx_in_tile]
-
-            # --- Create 2D Target Tensor ---
-            # Get Height and Width from the image tensor (dimension 2 and 3)
-            _, _, height, width = s2_tensor_cthw.shape
-            # Create a 2D tensor (H, W) filled with the scalar value
+            _, _, height, width = s2_tensor.shape
             agbd_tensor = torch.full((height, width), agbd_scalar, dtype=torch.float32)
-            # --- End Create 2D Target Tensor ---
 
-
+            # --- Metadata ---
             meta = {
                 "master_index": n, "h5_file": file_name, "tile_name": tile_name,
                 "h5_index": idx_in_tile, "split": self.split,
             }
+            meta.update(self._load_metadata(f, tile_name, idx_in_tile))
 
-            # Return the 4D image and the 2D target
-            return {"image": {"optical": s2_tensor_cthw}, "target": agbd_tensor, "meta": meta}
+            # --- Compose output dict ---
+            image = {"optical": s2_tensor}
+            if s1_tensor is not None:
+                image["s1"] = s1_tensor
+            if alos_tensor is not None:
+                image["alos"] = alos_tensor
+            if dem_tensor is not None:
+                image["dem"] = dem_tensor
+            if lc_tensor is not None:
+                image["lc"] = lc_tensor
+            if ch_tensor is not None:
+                image["ch"] = ch_tensor
 
+            return {"image": image, "target": agbd_tensor, "meta": meta}
 
         except Exception as e:
             logging.error(f"Error reading data for master index {n} (HDF5: {file_name}/{tile_name}[{idx_in_tile}]): {e}")
-            # Re-raising is often best during debugging.
             raise
+
+    def download(self, *args, **kwargs):
+        # No-op: AGBD data must be pre-downloaded
+        return
 
     def __del__(self):
         """Closes all open HDF5 file handles."""
@@ -398,3 +484,7 @@ class AGBDDataset(RawGeoFMDataset):
                 logging.warning(f"Exception while closing HDF5 handle for {fname}: {e}")
         self.handles.clear()
         logging.info(f"Closed {closed_count} HDF5 handles.")
+
+    def __len__(self):
+        """Returns the total number of samples in this split."""
+        return self.length

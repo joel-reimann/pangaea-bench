@@ -47,6 +47,9 @@ class Evaluator:
             inference_mode: str = 'sliding',
             sliding_inference_batch: int = None,
             use_wandb: bool = False,
+            save_tensors: bool = False,
+            tensor_save_dir: str | Path = None,
+            max_saved_tensors: int = 100,  # NEW
     ) -> None:
         self.rank = int(os.environ["RANK"])
         self.val_loader = val_loader
@@ -60,8 +63,13 @@ class Evaluator:
         self.ignore_index = self.val_loader.dataset.ignore_index
         self.num_classes = len(self.classes)
         self.max_name_len = max([len(name) for name in self.classes])
-
         self.use_wandb = use_wandb
+        self.save_tensors = save_tensors
+        self.tensor_save_dir = tensor_save_dir
+        self.max_saved_tensors = max_saved_tensors  # NEW
+        self._saved_tensor_count = 0  # NEW
+        if self.save_tensors and self.tensor_save_dir is not None and self.rank == 0:
+            os.makedirs(self.tensor_save_dir, exist_ok=True)
 
     def evaluate(
             self,
@@ -127,6 +135,54 @@ class Evaluator:
 
         return merged_pred
 
+    def maybe_save_tensor(self, image, pred, gt, logits=None, batch_idx=None, epoch=None, mode="eval", extra_meta=None):
+        """
+        Save a representative batch of tensors for later visualization/debugging.
+        Only saves if save_tensors is True, tensor_save_dir is set, and rank==0.
+        Saves a dict with input, pred, gt, logits, and metadata for downstream compatibility.
+        Args:
+            image (dict): Input modalities (dict of tensors)
+            pred (Tensor): Model prediction
+            gt (Tensor): Ground truth
+            logits (Tensor, optional): Raw model logits (if available)
+            batch_idx (int, optional): Batch index
+            epoch (int, optional): Epoch number
+            mode (str, optional): Mode ("eval", "test", etc.)
+            extra_meta (dict, optional): Any extra metadata to include
+        """
+        if not self.save_tensors or self.tensor_save_dir is None or self.rank != 0:
+            return
+        if self.max_saved_tensors is not None and self._saved_tensor_count >= self.max_saved_tensors:
+            if self._saved_tensor_count == self.max_saved_tensors:
+                self.logger.warning(f"[TensorSave] Reached max_saved_tensors={self.max_saved_tensors}. No further tensors will be saved.")
+                self._saved_tensor_count += 1  # Prevent repeated warnings
+            return
+        try:
+            os.makedirs(self.tensor_save_dir, exist_ok=True)
+            meta = {
+                "mode": mode,
+                "epoch": epoch,
+                "batch_idx": batch_idx,
+                "saved_tensor_idx": self._saved_tensor_count,
+                "timestamp": time.strftime("%Y%m%d_%H%M%S"),
+            }
+            if extra_meta is not None:
+                meta.update(extra_meta)
+            batch_save = {
+                "input": {k: v.detach().cpu() for k, v in image.items()},
+                "pred": pred.detach().cpu(),
+                "gt": gt.detach().cpu(),
+                "logits": logits.detach().cpu() if logits is not None else None,
+                "meta": meta,
+            }
+            fname = f"{mode}_epoch{epoch}_batch{batch_idx}_idx{self._saved_tensor_count}.pt"
+            save_path = os.path.join(self.tensor_save_dir, fname)
+            torch.save(batch_save, save_path)
+            self.logger.info(f"[TensorSave] Saved tensor batch to {save_path}")
+            self._saved_tensor_count += 1
+        except Exception as e:
+            self.logger.error(f"[TensorSave] Failed to save tensor batch: {e}")
+
 
 class SegEvaluator(Evaluator):
     """
@@ -157,15 +213,18 @@ class SegEvaluator(Evaluator):
             inference_mode: str = 'sliding',
             sliding_inference_batch: int = None,
             use_wandb: bool = False,
+            save_tensors: bool = False,
+            tensor_save_dir: str | Path = None,
+            max_saved_tensors: int = 100,  # NEW
     ):
-        super().__init__(val_loader, exp_dir, device, inference_mode, sliding_inference_batch, use_wandb)
+        super().__init__(val_loader, exp_dir, device, inference_mode, sliding_inference_batch, use_wandb, save_tensors, tensor_save_dir, max_saved_tensors)
 
     @torch.no_grad()
-    def evaluate(self, model, model_name='model', model_ckpt_path=None):
+    def evaluate(self, model, model_name='model', model_ckpt_path=None, epoch=None, mode="eval"):
         t = time.time()
 
         if model_ckpt_path is not None:
-            model_dict = torch.load(model_ckpt_path, map_location=self.device)
+            model_dict = torch.load(model_ckpt_path, map_location=self.device, weights_only=False)
             model_name = os.path.basename(model_ckpt_path).split(".")[0]
             if "model" in model_dict:
                 model.module.load_state_dict(model_dict["model"])
@@ -180,6 +239,12 @@ class SegEvaluator(Evaluator):
             (self.num_classes, self.num_classes), device=self.device
         )
 
+        n_batches = len(self.val_loader)
+        # Save first 2 and 2 random batches (if enough)
+        save_batches = set(range(min(2, n_batches)))
+        if n_batches > 4:
+            import random
+            save_batches.update(random.sample(range(2, n_batches), min(2, n_batches - 2)))
         for batch_idx, data in enumerate(tqdm(self.val_loader, desc=tag)):
 
             image, target = data["image"], data["target"]
@@ -204,6 +269,19 @@ class SegEvaluator(Evaluator):
                 (pred * self.num_classes + target), minlength=self.num_classes ** 2
             )
             confusion_matrix += count.view(self.num_classes, self.num_classes)
+
+            # --- Robust tensor logging ---
+            if batch_idx in save_batches:
+                self.maybe_save_tensor(
+                    image=image,
+                    pred=pred,
+                    gt=target,
+                    logits=logits,
+                    batch_idx=batch_idx,
+                    epoch=epoch,
+                    mode=mode,
+                    extra_meta={"model_name": model_name}
+                )
 
         torch.distributed.all_reduce(
             confusion_matrix, op=torch.distributed.ReduceOp.SUM
@@ -341,15 +419,18 @@ class RegEvaluator(Evaluator):
             inference_mode: str = 'sliding',
             sliding_inference_batch: int = None,
             use_wandb: bool = False,
+            save_tensors: bool = False,
+            tensor_save_dir: str | Path = None,
+            max_saved_tensors: int = 100,  # NEW
     ):
-        super().__init__(val_loader, exp_dir, device, inference_mode, sliding_inference_batch, use_wandb)
+        super().__init__(val_loader, exp_dir, device, inference_mode, sliding_inference_batch, use_wandb, save_tensors, tensor_save_dir, max_saved_tensors)
 
     @torch.no_grad()
-    def evaluate(self, model, model_name='model', model_ckpt_path=None):
+    def evaluate(self, model, model_name='model', model_ckpt_path=None, epoch=None, mode="eval"):
         t = time.time()
 
         if model_ckpt_path is not None:
-            model_dict = torch.load(model_ckpt_path, map_location=self.device)
+            model_dict = torch.load(model_ckpt_path, map_location=self.device, weights_only=False)
             model_name = os.path.basename(model_ckpt_path).split('.')[0]
             if 'model' in model_dict:
                 model.module.load_state_dict(model_dict["model"])
@@ -364,6 +445,11 @@ class RegEvaluator(Evaluator):
 
         mse = torch.zeros(1, device=self.device)
 
+        n_batches = len(self.val_loader)
+        save_batches = set(range(min(2, n_batches)))
+        if n_batches > 4:
+            import random
+            save_batches.update(random.sample(range(2, n_batches), min(2, n_batches - 2)))
         for batch_idx, data in enumerate(tqdm(self.val_loader, desc=tag)):
             image, target = data['image'], data['target']
             image = {k: v.to(self.device) for k, v in image.items()}
@@ -380,6 +466,37 @@ class RegEvaluator(Evaluator):
 
             mse += F.mse_loss(logits, target)
 
+            # --- Robust tensor logging ---
+            if batch_idx in save_batches:
+                self.maybe_save_tensor(
+                    image=image,
+                    pred=logits,
+                    gt=target,
+                    logits=logits,
+                    batch_idx=batch_idx,
+                    epoch=epoch,
+                    mode=mode,
+                    extra_meta={"model_name": model_name}
+                )
+            # --- Log images to wandb for the first batch ---
+            if self.use_wandb and self.rank == 0 and batch_idx < 1:
+                import numpy as np
+                img = image['optical'][0, 0].detach().cpu().numpy()
+                if img.shape[0] >= 3:
+                    rgb = img[:3]
+                else:
+                    rgb = np.repeat(img[0:1], 3, axis=0)
+                rgb = np.clip((rgb - rgb.min()) / (rgb.max() - rgb.min() + 1e-6), 0, 1)
+                rgb = (rgb * 255).astype(np.uint8).transpose(1, 2, 0)
+                gt = target[0].detach().cpu().numpy()
+                pred = logits[0].detach().cpu().numpy()
+                gt_img = (gt - gt.min()) / (gt.max() - gt.min() + 1e-6)
+                pred_img = (pred - pred.min()) / (pred.max() - pred.min() + 1e-6)
+                wandb.log({
+                    f"{self.split}_input_rgb": wandb.Image(rgb, caption="Input RGB"),
+                    f"{self.split}_gt": wandb.Image(gt_img, caption="Ground Truth"),
+                    f"{self.split}_pred": wandb.Image(pred_img, caption="Prediction"),
+                })
         torch.distributed.all_reduce(mse, op=torch.distributed.ReduceOp.SUM)
         mse = mse / len(self.val_loader)
 
