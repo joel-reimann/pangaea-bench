@@ -1,4 +1,5 @@
 import os
+import datetime
 
 import torch
 from torch.utils.data import Dataset, Subset
@@ -58,6 +59,14 @@ class RawGeoFMDataset(Dataset):
             download_url (str): url to download the dataset.
             auto_download (bool): whether to download the dataset automatically.
         """
+        # FORENSIC LOGGING
+        forensic_path = "/cluster/scratch/reimannj/agbd_logs/forensic_rawgeofmdataset_init.txt"
+        # Ensure log directory exists
+        os.makedirs(os.path.dirname(forensic_path), exist_ok=True)
+        with open(forensic_path, "a") as f:
+            f.write(f"[{datetime.datetime.now()}] RawGeoFMDataset.__init__ called: split={split}, dataset_name={dataset_name}, root_path={root_path}\n")
+        print(f"[FORENSIC] RawGeoFMDataset.__init__ called: split={split}, dataset_name={dataset_name}, root_path={root_path}", flush=True)
+
         self.split = split
         self.dataset_name = dataset_name
         self.multi_modal = multi_modal
@@ -151,6 +160,14 @@ class GeoFMDataset(Dataset):
         Args:
 
         """
+        # FORENSIC LOGGING
+        forensic_path = "/cluster/scratch/reimannj/agbd_logs/forensic_geofmdataset_init.txt"
+        # Ensure log directory exists
+        os.makedirs(os.path.dirname(forensic_path), exist_ok=True)
+        with open(forensic_path, "a") as f:
+            f.write(f"[{datetime.datetime.now()}] GeoFMDataset.__init__ called: dataset={type(dataset)}, replicate={replicate}\n")
+        print(f"[FORENSIC] GeoFMDataset.__init__ called: dataset={type(dataset)}, replicate={replicate}", flush=True)
+
         super().__init__()
         self.__dict__.update(dataset.__dict__)
         self.raw_dataset = dataset

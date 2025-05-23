@@ -125,6 +125,14 @@ def main(cfg: DictConfig) -> None:
     logger.info("The experiment is stored in %s\n" % exp_dir)
     logger.info(f"Device used: {device}")
 
+    # FORENSIC: Log dataset config and instantiation
+    forensic_path = "/cluster/scratch/reimannj/agbd_logs/forensic_run_dataset.txt"
+    # Ensure log directory exists
+    os.makedirs(os.path.dirname(forensic_path), exist_ok=True)
+    with open(forensic_path, "a") as f:
+        f.write(f"[RUN] Instantiating encoder, decoder, and datasets at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"[RUN] Dataset config: {OmegaConf.to_yaml(cfg.dataset)}\n")
+
     encoder: Encoder = instantiate(cfg.encoder)
     encoder.load_encoder_weights(logger)
     logger.info("Built {}.".format(encoder.model_name))
@@ -169,6 +177,42 @@ def main(cfg: DictConfig) -> None:
         # get datasets
         raw_train_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="train")
         raw_val_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="val")
+        with open(forensic_path, "a") as f:
+            f.write(f"[RUN] Instantiated raw_train_dataset: {type(raw_train_dataset)}\n")
+            f.write(f"[RUN] Instantiated raw_val_dataset: {type(raw_val_dataset)}\n")
+        print(f"[FORENSIC] Instantiated raw_train_dataset: {type(raw_train_dataset)}", flush=True)
+        print(f"[FORENSIC] Instantiated raw_val_dataset: {type(raw_val_dataset)}", flush=True)
+
+        # --- FORENSIC LOGGING: Inspect raw_train_dataset and raw_val_dataset output before transforms ---
+        for split_name, dataset in [("train", raw_train_dataset), ("val", raw_val_dataset)]:
+            try:
+                sample = dataset[0]
+                image = sample['image']
+                meta = sample.get('meta', sample.get('metadata', {}))
+                logger.info(f"[FORENSIC] First sample from {split_name} dataset:")
+                logger.info(f"  meta: {meta}")
+                for key, tensor in image.items():
+                    logger.info(f"  modality: {key}, shape: {tuple(tensor.shape)}, dtype: {tensor.dtype}, min: {tensor.min().item()}, max: {tensor.max().item()}, mean: {tensor.float().mean().item()}")
+                target = sample.get('target', None)
+                if target is not None:
+                    logger.info(f"  target: shape: {tuple(target.shape)}, dtype: {target.dtype}, min: {target.min().item()}, max: {target.max().item()}, mean: {target.float().mean().item()}")
+                # Save RGB image for optical if possible
+                if 'optical' in image:
+                    import matplotlib.pyplot as plt
+                    import numpy as np
+                    arr = image['optical'].squeeze().cpu().numpy()
+                    if arr.shape[0] >= 3:
+                        rgb = np.stack([
+                            arr[2],  # B04 (red)
+                            arr[1],  # B03 (green)
+                            arr[0],  # B02 (blue)
+                        ], axis=-1)
+                        rgb = np.clip((rgb - rgb.min()) / (rgb.max() - rgb.min() + 1e-6), 0, 1)
+                        out_path = f"/cluster/scratch/reimannj/forensic_{split_name}_sample0_rgb.png"
+                        plt.imsave(out_path, rgb)
+                        logger.info(f"[FORENSIC] Saved {split_name} RGB image to {out_path}")
+            except Exception as e:
+                logger.error(f"[FORENSIC] Error logging first sample from {split_name} dataset: {e}")
 
         if 0 < cfg.limited_label_train < 1:
             indices = get_subset_indices(
@@ -198,6 +242,11 @@ def main(cfg: DictConfig) -> None:
         val_dataset = GeoFMDataset(
             raw_val_dataset, val_preprocessor, cfg.data_replicate
         )
+        with open(forensic_path, "a") as f:
+            f.write(f"[RUN] Instantiated train_dataset: {type(train_dataset)}\n")
+            f.write(f"[RUN] Instantiated val_dataset: {type(val_dataset)}\n")
+        print(f"[FORENSIC] Instantiated train_dataset: {type(train_dataset)}", flush=True)
+        print(f"[FORENSIC] Instantiated val_dataset: {type(val_dataset)}", flush=True)
 
         logger.info("Built {} dataset.".format(cfg.dataset.dataset_name))
 
@@ -220,7 +269,6 @@ def main(cfg: DictConfig) -> None:
             drop_last=True,
             collate_fn=collate_fn,
         )
-
         val_loader = DataLoader(
             val_dataset,
             sampler=DistributedSampler(val_dataset),
@@ -233,6 +281,9 @@ def main(cfg: DictConfig) -> None:
             drop_last=False,
             collate_fn=collate_fn,
         )
+        with open(forensic_path, "a") as f:
+            f.write(f"[RUN] Created train_loader and val_loader at {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        print(f"[FORENSIC] Created train_loader and val_loader", flush=True)
 
         criterion = instantiate(cfg.criterion)
         optimizer = instantiate(cfg.optimizer, params=decoder.parameters())

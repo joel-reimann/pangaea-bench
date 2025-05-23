@@ -27,7 +27,7 @@ echo "hydra-core: $(pip show hydra-core | grep Version)"
 echo "PYTHONPATH: ${PYTHONPATH:-}"
 echo "=============================="
 
-cd /cluster/home/reimannj/pangaea-bench/
+cd /cluster/home/reimannj/pangaea-bench-20250522/
 
 export HYDRA_FULL_ERROR=1
 
@@ -52,6 +52,8 @@ echo "=============================="
 ################################################################################
 # MAIN PANGAEA AGBD DEBUG RUN (small, fast, for pipeline/image validation)
 ################################################################################
+
+python -c "import sys; print('[FORENSIC] sys.path:', sys.path); import pangaea.datasets.agbd" 
 
 /cluster/home/reimannj/pangaea-bench-venv/bin/torchrun --standalone --nproc_per_node=1 pangaea/run.py \
   dataset=agbd \

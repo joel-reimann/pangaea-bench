@@ -659,4 +659,3 @@ class RegTrainer(Trainer):
 
         mse = F.mse_loss(logits.squeeze(dim=1), target)  
         self.training_metrics["MSE"].update(mse.item())
-

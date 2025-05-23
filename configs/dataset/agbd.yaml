@@ -7,6 +7,7 @@ dataset_name: AGBD_HDF5 # Name for logging/identification
 # Uncomment the appropriate line for your environment
 # On Euler:
 root_path: /cluster/home/reimannj/
+# root_path: /cluster/work/igp_psr/gsialelli/Data/AGB/
 # On local:
 # root_path: /scratch/reimannj/pangaea_agbd_integration_final/data/agbd
 img_size: 25 # Should match the internal HDF5 patch size (25x25)
@@ -33,13 +34,13 @@ auto_download: False # Not used
 # Pangaea's preprocessor might still read these, depending on its configuration.
 # Using [0.0-1.0] range assumes 'pct' or 'min_max' normalization happens in the dataset class.
 data_mean:
-  optical: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] # Placeholder mean for normalized data
+  optical: [0, 0, 0, 0, 0, 0]  # IGNORED for AGBD: normalization is always loaded from the .pkl file
 data_std:
-  optical: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5] # Placeholder std for normalized data
+  optical: [1, 1, 1, 1, 1, 1]  # IGNORED for AGBD: normalization is always loaded from the .pkl file
 data_min:
-  optical: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0] # Min after normalization
+  optical: [0, 0, 0, 0, 0, 0]  # IGNORED for AGBD: normalization is always loaded from the .pkl file
 data_max:
-  optical: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] # Max after normalization
+  optical: [1, 1, 1, 1, 1, 1]  # IGNORED for AGBD: normalization is always loaded from the .pkl file
 h5_path: /cluster/work/igp_psr/gsialelli/Data/patches/
 # Optionally, you can add h5_pattern if you want to override the default pattern
 # h5_pattern: "*v4_*-20.h5"

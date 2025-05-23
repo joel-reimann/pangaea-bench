@@ -1,4 +1,8 @@
+print("[FORENSIC] Using agbd.py from:", __file__, flush=True)
 import logging
+logging.warning(f"[FORENSIC] Using agbd.py from: {__file__}")
+
+# import logging
 import os
 import h5py
 import torch
@@ -213,7 +217,8 @@ class AGBDDataset(RawGeoFMDataset):
         # --- AGBD Specific Init Logic ---
         self.h5_path = h5_path if h5_path is not None else self.root_path
         self.norm_path = self.root_path # Assuming PKL files are directly in root_path
-        self.mapping_path = self.root_path # Assuming biomes_splits pkl is in root_path
+        # self.mapping_path = self.root_path # Assuming biomes_splits pkl is in root_path #debug to test debug on euler
+        self.mapping_path = '/cluster/home/reimannj/' #debug to test debug on euler
 
         self.mode = self.split # Map Pangaea split to AGBD mode ('train', 'val', 'test')
         self.years = years
@@ -252,16 +257,68 @@ class AGBDDataset(RawGeoFMDataset):
              # This is a critical error - no data found for this split
              raise ValueError(f"Dataset split '{self.mode}' resulted in 0 samples. Check mapping file, HDF5 contents, and root_path.")
 
-        # Load normalization values
+        # Load normalization values (MUST match AGBD official logic)
         norm_file = join(self.norm_path, f"statistics_subset_2019-2020-v{self.version}_new.pkl")
+        # test the other file
+        # norm_file = join(self.norm_path, f"statistics_subset.pkl")
+
         if not exists(norm_file):
             raise FileNotFoundError(f"Normalization file not found: {norm_file}")
         try:
             with open(norm_file, mode='rb') as f:
                 self.norm_values = pickle.load(f)
+            logging.info(f"Loaded normalization file: {norm_file} (keys: {list(self.norm_values.keys())})")
         except Exception as e:
             logging.error(f"Error loading normalization file {norm_file}: {e}")
             raise
+
+        # --- Overwrite all normalization attributes with values from .pkl file ---
+        # IMPORTANT: For AGBD, all normalization values (mean, std, min, max, etc.) are loaded from the .pkl file.
+        # The config values (data_mean, data_std, data_min, data_max) are ignored and replaced here.
+        # This ensures correct normalization and prevents bugs if config values are stale or dummy.
+        #
+        # The .pkl file (self.norm_values) contains per-band/group statistics for all relevant modalities.
+        # We extract the relevant stats for each modality and set the attributes accordingly.
+
+        def _extract_stat_from_pkl(norm_values, stat):
+            # Helper to extract a dict of modality -> list of stat values
+            out = {}
+            # Sentinel-2 bands (optical)
+            if 'S2_bands' in norm_values:
+                out['optical'] = [norm_values['S2_bands'][b][stat] for b in self.bands.get('optical', []) if b in norm_values['S2_bands']]
+            # Add other modalities as needed (ALOS, CH, DEM, etc.)
+            if 'ALOS_bands' in norm_values:
+                out['alos'] = [norm_values['ALOS_bands'][b][stat] for b in self.ALOS_BANDS if b in norm_values['ALOS_bands']]
+            if 'CH' in norm_values and stat in norm_values['CH']:
+                out['ch'] = [norm_values['CH'][stat]]
+            if 'DEM' in norm_values and stat in norm_values['DEM']:
+                out['dem'] = [norm_values['DEM'][stat]]
+            # Add more as needed
+            return out
+
+        # Overwrite normalization attributes
+        self.data_mean = _extract_stat_from_pkl(self.norm_values, 'mean')
+        self.data_std  = _extract_stat_from_pkl(self.norm_values, 'std')
+        self.data_min  = _extract_stat_from_pkl(self.norm_values, 'min')
+        self.data_max  = _extract_stat_from_pkl(self.norm_values, 'max')
+        # Optionally, add percentiles if needed:
+        # self.data_p1 = _extract_stat_from_pkl(self.norm_values, '1%')
+        # self.data_p99 = _extract_stat_from_pkl(self.norm_values, '99%')
+
+        # --- Runtime warning if dummy config values are still present ---
+        def _is_dummy(vals):
+            # Detects if a normalization dict is still set to dummy values (e.g., all 0.5 or 0/1)
+            if not isinstance(vals, dict):
+                return False
+            for v in vals.values():
+                if isinstance(v, (list, tuple)) and all(x in (0.0, 0.5, 1.0) for x in v):
+                    return True
+            return False
+        if any(_is_dummy(x) for x in [data_mean, data_std, data_min, data_max]):
+            logging.warning("[AGBDDataset] Dummy normalization values from config detected and ignored. All normalization is loaded from the .pkl file.")
+
+        # --- Docstring for maintainers ---
+        self.__doc__ = (self.__doc__ or "") + "\n\nNOTE: For AGBD, all normalization values are loaded from the .pkl file.\nConfig values for normalization are ignored and replaced at runtime.\nDo not rely on config normalization values for this dataset."
 
         # Open HDF5 handles (potential issue with num_workers > 0 in DataLoader)
         # Only open files that are actually part of the index for this split
@@ -383,8 +440,23 @@ class AGBDDataset(RawGeoFMDataset):
 
             # --- S2 (Prithvi) ---
             s2_bands = PRITHVI_BANDS
+            # Forensic: load raw patch before any scaling/normalization
+            try:
+                file_handle = f
+                raw_patch = file_handle[tile_name]['S2_bands'][idx_in_tile, self.h5_patch_center - self.h5_patch_window : self.h5_patch_center + self.h5_patch_window + 1, self.h5_patch_center - self.h5_patch_window : self.h5_patch_center + self.h5_patch_window + 1, :]
+                raw_patch = np.array(raw_patch)
+                print(f"[FORENSIC] S2 raw patch (before scaling) min: {raw_patch.min():.4f}, max: {raw_patch.max():.4f}, mean: {raw_patch.mean():.4f}, shape: {raw_patch.shape}")
+                scaled_patch = raw_patch / 10000.0
+                print(f"[FORENSIC] S2 patch after /10000 scaling min: {scaled_patch.min():.4f}, max: {scaled_patch.max():.4f}, mean: {scaled_patch.mean():.4f}")
+                # Print normalization stats for each band
+                for b in s2_bands:
+                    norm_stats = self.norm_values['S2_bands'][b]
+                    print(f"[FORENSIC] Norm stats for {b}: {norm_stats}")
+            except Exception as e:
+                print(f"[FORENSIC] Error in S2 forensic logging: {e}")
             s2_post = lambda arr: arr / 10000.0  # DN to reflectance
             s2_arr = self._load_and_normalize(f, tile_name, 'S2_bands', s2_bands, 'S2_bands', self.norm_strat, NODATAVALS['S2_bands'], postprocess=s2_post)
+            print(f"[FORENSIC] S2 patch after normalization min: {s2_arr.min():.4f}, max: {s2_arr.max():.4f}, mean: {s2_arr.mean():.4f}, shape: {s2_arr.shape}")
             s2_tensor = torch.from_numpy(s2_arr.copy()).permute(2, 0, 1).unsqueeze(1)  # (C, T=1, H, W)
 
             # --- Helper to check if group is a dataset ---

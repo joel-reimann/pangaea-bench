@@ -21,6 +21,9 @@ from PIL import Image
 import random
 import sys
 
+# Sentinel-2 band names for AGBD/Prithvi convention
+BANDS_PRITHVI = ['B02', 'B03', 'B04', 'B8A', 'B11', 'B12']
+
 def save_image(arr, out_path, cmap=None, vmin=None, vmax=None, overlay=None, alpha=0.4, resize=None):
     """Save a numpy array as an image, with optional colormap and overlay."""
     arr = np.asarray(arr)
@@ -318,7 +321,7 @@ def main():
                     summary_entry['modalities'][mod] = {'present': False}
             # GT and pred stats
             for name, arr in [('gt', gt_arr[i]), ('pred', pred_arr[i])]:
-                arr_np = arr.cpu().numpy() if hasattr(arr, 'cpu') : arr
+                arr_np = arr.cpu().numpy() if hasattr(arr, 'cpu') else arr
                 arr_np = np.squeeze(arr_np)
                 summary_entry['modalities'][name] = {
                     'present': True,
@@ -347,7 +350,11 @@ def main():
                     meta=f'batch {batch_idx} sample {i}',
                     out_path=output_dir / f'{args.split}_composite_{image_count}.png'
                 )
-            rgb = input_arr[i]
+            # Use 'optical' modality for rgb if present, else fallback to first available modality
+            if 'optical' in sample_modalities:
+                rgb = sample_modalities['optical']
+            else:
+                rgb = next(iter(sample_modalities.values()))
             gt_img = gt_arr[i]
             pred_img = pred_arr[i]
             # --- Handle singleton temporal dimension for AGBD ---

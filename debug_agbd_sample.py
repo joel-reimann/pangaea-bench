@@ -8,7 +8,8 @@ import argparse
 
 # --- CONFIG ---
 # Set this to your local copy of the AGBD HDF5 files
-ROOT_PATH = '/scratch/reimannj/pangaea_agbd_integration_final/data/agbd/'  # <-- your local path
+# ROOT_PATH = '/scratch/reimannj/pangaea_agbd_integration_final/data/agbd/'  # <-- your local path
+ROOT_PATH = '/cluster/work/igp_psr/gsialelli/Data/patches/'
 SPLIT = 'val'  # or 'train' or 'test'
 IMG_SIZE = 25  # AGBD native patch size
 
@@ -55,7 +56,8 @@ print(f'Output dir: {base_out_dir}')
 
 # Print normalization stats for each band
 import pickle
-norm_stats_path = os.path.join(ROOT_PATH, 'statistics_subset_2019-2020-v4_new.pkl')
+# norm_stats_path = os.path.join(ROOT_PATH, 'statistics_subset_2019-2020-v4_new.pkl')
+norm_stats_path = os.path.join('/cluster/home/reimannj/', 'statistics_subset_2019-2020-v4_new.pkl')
 if os.path.exists(norm_stats_path):
     with open(norm_stats_path, 'rb') as f:
         norm_stats = pickle.load(f)
