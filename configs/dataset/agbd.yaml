@@ -1,0 +1,83 @@
+# PANGAEA config for AGBD dataset integration
+# DRAFT: Review all fields and update paths as needed
+# This config is based on diagnostics and patch inspection logs, and follows conventions from biomassters.yaml
+
+
+
+######################### Build INFO DELETE THIS #########################
+# (pangaea-bench) reimannj@pf-pc11:/scratch/reimannj/pangaea_agbd_integration_final/data/agbd$ ls
+# biomes_splits_to_name.pkl     data_subset-2019-v4_14-20.h5  data_subset-2019-v4_3-20.h5  data_subset-2020-v4_0-20.h5   data_subset-2020-v4_15-20.h5  data_subset-2020-v4_4-20.h5             test_features_2019-v4.csv
+# data_subset-2019-v4_0-20.h5   data_subset-2019-v4_15-20.h5  data_subset-2019-v4_4-20.h5  data_subset-2020-v4_10-20.h5  data_subset-2020-v4_16-20.h5  data_subset-2020-v4_5-20.h5             test_features_2020-v4.csv
+# data_subset-2019-v4_10-20.h5  data_subset-2019-v4_16-20.h5  data_subset-2019-v4_5-20.h5  data_subset-2020-v4_11-20.h5  data_subset-2020-v4_17-20.h5  data_subset-2020-v4_6-20.h5             train_features_2019-v4.csv
+# data_subset-2019-v4_11-20.h5  data_subset-2019-v4_17-20.h5  data_subset-2019-v4_6-20.h5  data_subset-2020-v4_1-20.h5   data_subset-2020-v4_18-20.h5  data_subset-2020-v4_7-20.h5             train_features_2020-v4.csv
+# data_subset-2019-v4_1-20.h5   data_subset-2019-v4_18-20.h5  data_subset-2019-v4_7-20.h5  data_subset-2020-v4_12-20.h5  data_subset-2020-v4_19-20.h5  data_subset-2020-v4_8-20.h5             val_features_2019-v4.csv
+# data_subset-2019-v4_12-20.h5  data_subset-2019-v4_19-20.h5  data_subset-2019-v4_8-20.h5  data_subset-2020-v4_13-20.h5  data_subset-2020-v4_2-20.h5   data_subset-2020-v4_9-20.h5             val_features_2020-v4.csv
+# data_subset-2019-v4_13-20.h5  data_subset-2019-v4_2-20.h5   data_subset-2019-v4_9-20.h5  data_subset-2020-v4_14-20.h5  data_subset-2020-v4_3-20.h5   statistics_subset_2019-2020-v4_new.pkl
+###########################################################################
+
+_target_: pangaea.datasets.agbd.AGBD
+# TODO: Implement the AGBD dataset class in pangaea/datasets/agbd.py
+
+dataset_name: AGBD
+root_path: /scratch/reimannj/pangaea_agbd_integration_final/data/agbd  # TODO: confirm path
+
+# Instead of a single hdf5_file, specify the directory and file pattern
+hdf5_dir: /scratch/reimannj/pangaea_agbd_integration_final/data/agbd
+hdf5_pattern: data_subset-*-v4_*-20.h5  # All 2019 and 2020 HDF5 files
+
+# Specify all relevant split files for both years
+split_files:
+  train:
+    - train_features_2019-v4.csv
+    - train_features_2020-v4.csv
+  val:
+    - val_features_2019-v4.csv
+    - val_features_2020-v4.csv
+  test:
+    - test_features_2019-v4.csv
+    - test_features_2020-v4.csv
+
+img_size: 25  # Confirmed from patch inspection
+multi_modal: true
+multi_temporal: false  # AGBD is single-date per patch
+
+# Regression task: AGBD (Above Ground Biomass Density)
+ignore_index: -1
+num_classes: 1
+classes:
+  - regression
+distribution:
+  - 1.0
+
+bands:
+  optical: [B01, B02, B03, B04, B05, B06, B07, B08, B8A, B09, B11, B12]  # S2 band order from log
+  sar: [HH, HV]  # ALOS band order from log
+
+# Normalization stats from diagnostics log (mean/std per band, in physical units)
+data_mean:
+  optical: [0.12478869, 0.13480005, 0.16031432, 0.1532097, 0.20312776, 0.32636437, 0.36605212, 0.3811653, 0.3910436, 0.3910644, 0.2917373, 0.21169408]
+  sar: [-10.381429, -16.722847]
+data_std:
+  optical: [0.024433358, 0.02822557, 0.032037303, 0.038628064, 0.04205057, 0.07139242, 0.08555025, 0.092815965, 0.0896364, 0.0836445, 0.07472579, 0.05880649]
+  sar: [8.561741, 8.718428]
+data_min:
+  optical: [0.0001, 0.0001, 0.0001, 0.0001, 0.0422, 0.0502, 0.0616, 0.0001, 0.055, 0.0012, 0.0953, 0.0975]
+  sar: [-83.0, -83.0]
+data_max:
+  optical: [1.8808, 2.1776, 2.12, 2.0032, 1.7502, 1.7245, 1.7149, 1.7488, 1.688, 1.7915, 1.648, 1.6775]
+  sar: [13.329468, 11.688309]
+
+# Label/target
+label_group: GEDI
+label_name: agbd  # Above Ground Biomass Density
+
+# TODO: Add DEM, LC, S2_SCL, CH, or other modalities if needed for your experiments
+# TODO: Confirm if masks or additional metadata are required
+
+# Notes:
+# - Normalization must be applied in the dataset class, after converting uint16 to float and scaling to physical units if needed.
+# - Band order must match exactly as above.
+# - Update split file paths and hdf5 filename as needed.
+# - The dataset class must parse all split files for the selected split and build a mapping from patch ID to (HDF5 file, index).
+# - When loading a patch, the class must open the correct HDF5 file and read the patch by index.
+# - Do not assume a single HDF5 file; always resolve per-patch.

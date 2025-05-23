@@ -272,6 +272,21 @@ def main(cfg: DictConfig) -> None:
 
     # get datasets
     raw_test_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="test")
+
+    # >>>>> INTEGRATION PATCH: AGBD test set subsampling for debugging (remove for production)
+    # Optionally subsample the test set for rapid debugging, controlled by limited_label_test in config
+    if hasattr(cfg, "limited_label_test") and 0 < cfg.limited_label_test < 1:
+        indices = get_subset_indices(
+            raw_test_dataset,
+            task=task_name if train_run else cfg.task.get("name", "regression"),
+            strategy=cfg.limited_label_strategy if hasattr(cfg, "limited_label_strategy") else "random",
+            label_fraction=cfg.limited_label_test,
+            num_bins=cfg.stratification_bins if hasattr(cfg, "stratification_bins") else 3,
+            logger=logger,
+        )
+        raw_test_dataset = GeoFMSubset(raw_test_dataset, indices)
+    # <<<<< END INTEGRATION PATCH: AGBD test set subsampling
+
     test_dataset = GeoFMDataset(raw_test_dataset, test_preprocessor)
 
     test_loader = DataLoader(
