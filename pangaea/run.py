@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(__file__, '..', '..')))
+
 import hashlib
 import os as os
 import pathlib
@@ -243,7 +246,11 @@ def main(cfg: DictConfig) -> None:
         )
 
         val_evaluator: Evaluator = instantiate(
-            cfg.task.evaluator, val_loader=val_loader, exp_dir=exp_dir, device=device
+            cfg.task.evaluator,
+            val_loader=val_loader,
+            exp_dir=exp_dir,
+            device=device,
+            use_wandb=cfg.task.trainer.use_wandb,
         )
         trainer: Trainer = instantiate(
             cfg.task.trainer,
@@ -272,6 +279,21 @@ def main(cfg: DictConfig) -> None:
 
     # get datasets
     raw_test_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="test")
+
+    # >>>>> INTEGRATION PATCH REMOVED FOR PRODUCTION: AGBD test set subsampling
+    # Optionally subsample the test set for rapid debugging, controlled by limited_label_test in config
+    if hasattr(cfg, "limited_label_test") and 0 < cfg.limited_label_test < 1:
+        indices = get_subset_indices(
+            raw_test_dataset,
+            task=task_name if train_run else cfg.task.get("name", "regression"),
+            strategy=cfg.limited_label_strategy if hasattr(cfg, "limited_label_strategy") else "random",
+            label_fraction=cfg.limited_label_test,
+            num_bins=cfg.stratification_bins if hasattr(cfg, "stratification_bins") else 3,
+            logger=logger,
+        )
+        raw_test_dataset = GeoFMSubset(raw_test_dataset, indices)
+    # <<<<< END INTEGRATION PATCH: AGBD test set subsampling
+
     test_dataset = GeoFMDataset(raw_test_dataset, test_preprocessor)
 
     test_loader = DataLoader(
@@ -285,7 +307,11 @@ def main(cfg: DictConfig) -> None:
         collate_fn=collate_fn,
     )
     test_evaluator: Evaluator = instantiate(
-        cfg.task.evaluator, val_loader=test_loader, exp_dir=exp_dir, device=device
+        cfg.task.evaluator,
+        val_loader=test_loader,
+        exp_dir=exp_dir,
+        device=device,
+        use_wandb=cfg.task.trainer.use_wandb,
     )
 
     if cfg.use_final_ckpt:

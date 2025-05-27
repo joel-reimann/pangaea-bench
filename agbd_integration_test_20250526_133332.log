@@ -1,0 +1,128 @@
+2025-05-26 13:33:32,276 - INFO - Starting comprehensive AGBD integration test
+2025-05-26 13:33:32,276 - INFO - Quick mode: False
+2025-05-26 13:33:32,276 - INFO - ============================================================
+2025-05-26 13:33:32,276 - INFO - TESTING BASIC DATA LOADING
+2025-05-26 13:33:32,276 - INFO - ============================================================
+2025-05-26 13:33:32,277 - INFO - 
+Testing dataset config: agbd
+2025-05-26 13:33:32,277 - INFO - Testing data loading with config: agbd
+2025-05-26 13:33:32,505 - ERROR - Data loading test failed: AGBD.__init__() missing 3 required positional arguments: 'split_files', 'label_group', and 'label_name'
+2025-05-26 13:33:32,506 - ERROR - Traceback: Traceback (most recent call last):
+  File "/scratch/reimannj5/pangaea-bench/test_agbd_integration.py", line 147, in test_data_loading
+    dataset = dataset_class(split='train', **dataset_kwargs)
+TypeError: AGBD.__init__() missing 3 required positional arguments: 'split_files', 'label_group', and 'label_name'
+
+2025-05-26 13:33:32,506 - ERROR - Data loading failed for agbd: AGBD.__init__() missing 3 required positional arguments: 'split_files', 'label_group', and 'label_name'
+2025-05-26 13:33:32,506 - INFO - ============================================================
+2025-05-26 13:33:32,506 - INFO - TESTING ENCODER COMPATIBILITY
+2025-05-26 13:33:32,506 - INFO - ============================================================
+2025-05-26 13:33:32,506 - INFO - 
+Testing encoder: remoteclip
+2025-05-26 13:33:32,506 - INFO - Testing encoder compatibility: remoteclip with dataset: agbd
+2025-05-26 13:33:32,679 - INFO - Encoder config loaded: pangaea.encoders.remoteclip_encoder.RemoteCLIP_Encoder
+2025-05-26 13:33:32,680 - INFO - Encoder compatibility successful for remoteclip
+2025-05-26 13:33:32,680 - INFO - 
+Testing encoder: prithvi
+2025-05-26 13:33:32,680 - INFO - Testing encoder compatibility: prithvi with dataset: agbd
+2025-05-26 13:33:32,854 - INFO - Encoder config loaded: pangaea.encoders.prithvi_encoder.Prithvi_Encoder
+2025-05-26 13:33:32,854 - INFO - Encoder compatibility successful for prithvi
+2025-05-26 13:33:32,854 - INFO - 
+Testing encoder: scalemae
+2025-05-26 13:33:32,854 - INFO - Testing encoder compatibility: scalemae with dataset: agbd
+2025-05-26 13:33:33,030 - INFO - Encoder config loaded: pangaea.encoders.scalemae_encoder.ScaleMAE_Encoder
+2025-05-26 13:33:33,030 - INFO - Encoder compatibility successful for scalemae
+2025-05-26 13:33:33,030 - INFO - 
+Testing encoder: gfmswin
+2025-05-26 13:33:33,030 - INFO - Testing encoder compatibility: gfmswin with dataset: agbd
+2025-05-26 13:33:33,271 - INFO - Encoder config loaded: pangaea.encoders.gfmswin_encoder.GFMSwin_Encoder
+2025-05-26 13:33:33,271 - INFO - Encoder compatibility successful for gfmswin
+2025-05-26 13:33:33,271 - INFO - 
+Testing encoder: croma_optical
+2025-05-26 13:33:33,271 - INFO - Testing encoder compatibility: croma_optical with dataset: agbd
+2025-05-26 13:33:33,444 - INFO - Encoder config loaded: pangaea.encoders.croma_encoder.CROMA_OPTICAL_Encoder
+2025-05-26 13:33:33,445 - INFO - Encoder compatibility successful for croma_optical
+2025-05-26 13:33:33,445 - INFO - 
+Testing encoder: croma_sar
+2025-05-26 13:33:33,445 - INFO - Testing encoder compatibility: croma_sar with dataset: agbd
+2025-05-26 13:33:33,614 - INFO - Encoder config loaded: pangaea.encoders.croma_encoder.CROMA_SAR_Encoder
+2025-05-26 13:33:33,614 - INFO - Encoder compatibility successful for croma_sar
+2025-05-26 13:33:33,614 - INFO - 
+Testing encoder: croma_joint
+2025-05-26 13:33:33,615 - INFO - Testing encoder compatibility: croma_joint with dataset: agbd
+2025-05-26 13:33:33,788 - INFO - Encoder config loaded: pangaea.encoders.croma_encoder.CROMA_JOINT_Encoder
+2025-05-26 13:33:33,788 - INFO - Encoder compatibility successful for croma_joint
+2025-05-26 13:33:33,788 - INFO - ============================================================
+2025-05-26 13:33:33,788 - INFO - TESTING FULL PIPELINE COMBINATIONS
+2025-05-26 13:33:33,788 - INFO - ============================================================
+2025-05-26 13:33:33,788 - INFO - 
+Testing combination: remoteclip + reg_upernet
+2025-05-26 13:33:33,789 - INFO - Testing full pipeline: remoteclip + reg_upernet (quick=False)
+2025-05-26 13:33:33,970 - INFO - Testing training initialization...
+2025-05-26 13:33:33,970 - INFO - Pipeline test successful for remoteclip+reg_upernet
+2025-05-26 13:33:33,970 - INFO - 
+Testing combination: remoteclip + reg_unet
+2025-05-26 13:33:33,970 - INFO - Testing full pipeline: remoteclip + reg_unet (quick=False)
+2025-05-26 13:33:34,146 - INFO - Testing training initialization...
+2025-05-26 13:33:34,147 - INFO - Pipeline test successful for remoteclip+reg_unet
+2025-05-26 13:33:34,147 - INFO - 
+Testing combination: prithvi + reg_upernet
+2025-05-26 13:33:34,147 - INFO - Testing full pipeline: prithvi + reg_upernet (quick=False)
+2025-05-26 13:33:34,325 - INFO - Testing training initialization...
+2025-05-26 13:33:34,326 - INFO - Pipeline test successful for prithvi+reg_upernet
+2025-05-26 13:33:34,326 - INFO - 
+Testing combination: prithvi + reg_unet
+2025-05-26 13:33:34,326 - INFO - Testing full pipeline: prithvi + reg_unet (quick=False)
+2025-05-26 13:33:34,503 - INFO - Testing training initialization...
+2025-05-26 13:33:34,503 - INFO - Pipeline test successful for prithvi+reg_unet
+2025-05-26 13:33:34,503 - INFO - 
+Testing combination: scalemae + reg_upernet
+2025-05-26 13:33:34,503 - INFO - Testing full pipeline: scalemae + reg_upernet (quick=False)
+2025-05-26 13:33:34,679 - INFO - Testing training initialization...
+2025-05-26 13:33:34,680 - INFO - Pipeline test successful for scalemae+reg_upernet
+2025-05-26 13:33:34,680 - INFO - 
+Testing combination: scalemae + reg_unet
+2025-05-26 13:33:34,680 - INFO - Testing full pipeline: scalemae + reg_unet (quick=False)
+2025-05-26 13:33:34,857 - INFO - Testing training initialization...
+2025-05-26 13:33:34,857 - INFO - Pipeline test successful for scalemae+reg_unet
+2025-05-26 13:33:34,857 - INFO - 
+Testing combination: gfmswin + reg_upernet
+2025-05-26 13:33:34,857 - INFO - Testing full pipeline: gfmswin + reg_upernet (quick=False)
+2025-05-26 13:33:35,037 - INFO - Testing training initialization...
+2025-05-26 13:33:35,038 - INFO - Pipeline test successful for gfmswin+reg_upernet
+2025-05-26 13:33:35,038 - INFO - 
+Testing combination: gfmswin + reg_unet
+2025-05-26 13:33:35,038 - INFO - Testing full pipeline: gfmswin + reg_unet (quick=False)
+2025-05-26 13:33:35,216 - INFO - Testing training initialization...
+2025-05-26 13:33:35,217 - INFO - Pipeline test successful for gfmswin+reg_unet
+2025-05-26 13:33:35,217 - INFO - 
+Testing combination: croma_optical + reg_upernet
+2025-05-26 13:33:35,217 - INFO - Testing full pipeline: croma_optical + reg_upernet (quick=False)
+2025-05-26 13:33:35,397 - INFO - Testing training initialization...
+2025-05-26 13:33:35,397 - INFO - Pipeline test successful for croma_optical+reg_upernet
+2025-05-26 13:33:35,397 - INFO - 
+Testing combination: croma_optical + reg_unet
+2025-05-26 13:33:35,398 - INFO - Testing full pipeline: croma_optical + reg_unet (quick=False)
+2025-05-26 13:33:35,646 - INFO - Testing training initialization...
+2025-05-26 13:33:35,646 - INFO - Pipeline test successful for croma_optical+reg_unet
+2025-05-26 13:33:35,646 - INFO - 
+Testing combination: croma_sar + reg_upernet
+2025-05-26 13:33:35,646 - INFO - Testing full pipeline: croma_sar + reg_upernet (quick=False)
+2025-05-26 13:33:35,820 - INFO - Testing training initialization...
+2025-05-26 13:33:35,820 - INFO - Pipeline test successful for croma_sar+reg_upernet
+2025-05-26 13:33:35,820 - INFO - 
+Testing combination: croma_sar + reg_unet
+2025-05-26 13:33:35,820 - INFO - Testing full pipeline: croma_sar + reg_unet (quick=False)
+2025-05-26 13:33:35,994 - INFO - Testing training initialization...
+2025-05-26 13:33:35,994 - INFO - Pipeline test successful for croma_sar+reg_unet
+2025-05-26 13:33:35,994 - INFO - 
+Testing combination: croma_joint + reg_upernet
+2025-05-26 13:33:35,995 - INFO - Testing full pipeline: croma_joint + reg_upernet (quick=False)
+2025-05-26 13:33:36,170 - INFO - Testing training initialization...
+2025-05-26 13:33:36,171 - INFO - Pipeline test successful for croma_joint+reg_upernet
+2025-05-26 13:33:36,171 - INFO - 
+Testing combination: croma_joint + reg_unet
+2025-05-26 13:33:36,171 - INFO - Testing full pipeline: croma_joint + reg_unet (quick=False)
+2025-05-26 13:33:36,351 - INFO - Testing training initialization...
+2025-05-26 13:33:36,351 - INFO - Pipeline test successful for croma_joint+reg_unet
+2025-05-26 13:33:36,354 - INFO - Results saved to agbd_test_results_20250526_133336.csv
+2025-05-26 13:33:36,355 - INFO - Report saved to agbd_test_results_20250526_133336.txt

@@ -19,6 +19,8 @@ data/mados/*
 !data/mados/splits
 data/mados/splits/*
 !data/mados/splits/tiny_X.txt
+2025*/
+agbd_*/
 
 .vscode
 .idea

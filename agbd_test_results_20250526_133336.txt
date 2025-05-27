@@ -1,0 +1,53 @@
+AGBD Integration Test Report
+==================================================
+Generated: 2025-05-26 13:33:36
+Total tests: 22
+
+Summary by Test Type:
+------------------------------
+data_loading: 0/1 passed
+encoder_compatibility: 7/7 passed
+full_pipeline: 14/14 passed
+
+Detailed Results:
+------------------------------
+✗ data_loading
+    Error: AGBD.__init__() missing 3 required positional arguments: 'split_files', 'label_group', and 'label_name'
+✓ encoder_compatibility (remoteclip)
+✓ encoder_compatibility (prithvi)
+✓ encoder_compatibility (scalemae)
+✓ encoder_compatibility (gfmswin)
+✓ encoder_compatibility (croma_optical)
+✓ encoder_compatibility (croma_sar)
+✓ encoder_compatibility (croma_joint)
+✓ full_pipeline (remoteclip+reg_upernet)
+✓ full_pipeline (remoteclip+reg_unet)
+✓ full_pipeline (prithvi+reg_upernet)
+✓ full_pipeline (prithvi+reg_unet)
+✓ full_pipeline (scalemae+reg_upernet)
+✓ full_pipeline (scalemae+reg_unet)
+✓ full_pipeline (gfmswin+reg_upernet)
+✓ full_pipeline (gfmswin+reg_unet)
+✓ full_pipeline (croma_optical+reg_upernet)
+✓ full_pipeline (croma_optical+reg_unet)
+✓ full_pipeline (croma_sar+reg_upernet)
+✓ full_pipeline (croma_sar+reg_unet)
+✓ full_pipeline (croma_joint+reg_upernet)
+✓ full_pipeline (croma_joint+reg_unet)
+
+Working Encoder/Decoder Combinations:
+----------------------------------------
+  • remoteclip + reg_upernet
+  • remoteclip + reg_unet
+  • prithvi + reg_upernet
+  • prithvi + reg_unet
+  • scalemae + reg_upernet
+  • scalemae + reg_unet
+  • gfmswin + reg_upernet
+  • gfmswin + reg_unet
+  • croma_optical + reg_upernet
+  • croma_optical + reg_unet
+  • croma_sar + reg_upernet
+  • croma_sar + reg_unet
+  • croma_joint + reg_upernet
+  • croma_joint + reg_unet

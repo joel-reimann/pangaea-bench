@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from .visualisation_utils import log_regression_images_wandb
 
 
 class Evaluator:
@@ -62,6 +63,9 @@ class Evaluator:
         self.max_name_len = max([len(name) for name in self.classes])
         self.use_wandb = use_wandb
         
+        # Initialize step counter for WandB logging to avoid conflicts with training steps
+        self.wandb_step_counter = 0
+        
         # Compute valid class indices (excluding ignore index)
         self.valid_class_indices = [
             i for i in range(self.num_classes) if i != self.ignore_index
@@ -73,6 +77,7 @@ class Evaluator:
             model: torch.nn.Module,
             model_name: str,
             model_ckpt_path: str | Path | None = None,
+            wandb_step: int | None = None,
     ) -> None:
         raise NotImplementedError
 
@@ -166,8 +171,16 @@ class SegEvaluator(Evaluator):
         super().__init__(val_loader, exp_dir, device, inference_mode, sliding_inference_batch, use_wandb)
 
     @torch.no_grad()
-    def evaluate(self, model, model_name='model', model_ckpt_path=None):
+    def evaluate(self, model, model_name='model', model_ckpt_path=None, wandb_step=None):
         t = time.time()
+        
+        # Use provided step or calculate a safe one
+        if wandb_step is not None:
+            safe_step = wandb_step
+        else:
+            # Fallback: Calculate a safe WandB step that won't conflict with training steps
+            safe_step = 10000 + self.wandb_step_counter
+            self.wandb_step_counter += 1
 
         if model_ckpt_path is not None:
             model_dict = torch.load(model_ckpt_path, map_location=self.device, weights_only=False)
@@ -214,15 +227,15 @@ class SegEvaluator(Evaluator):
             confusion_matrix, op=torch.distributed.ReduceOp.SUM
         )
         metrics = self.compute_metrics(confusion_matrix.cpu())
-        self.log_metrics(metrics)
+        self.log_metrics(metrics, step=safe_step)
 
         used_time = time.time() - t
 
         return metrics, used_time
 
     @torch.no_grad()
-    def __call__(self, model, model_name, model_ckpt_path=None):
-        return self.evaluate(model, model_name, model_ckpt_path)
+    def __call__(self, model, model_name, model_ckpt_path=None, wandb_step=None):
+        return self.evaluate(model, model_name, model_ckpt_path, wandb_step)
 
     def compute_metrics(self, confusion_matrix):
         # Calculate IoU for each class
@@ -263,7 +276,7 @@ class SegEvaluator(Evaluator):
 
         return metrics
 
-    def log_metrics(self, metrics):
+    def log_metrics(self, metrics, step=None):
         def format_metric(name, values, mean_value):
             header = f"------- {name} --------\n"
             metric_str = (
@@ -298,29 +311,31 @@ class SegEvaluator(Evaluator):
         self.logger.info(macc_str)
 
         if self.use_wandb and self.rank == 0:
-            wandb.log(
-                {
-                    f"{self.split}_mIoU": metrics["mIoU"],
-                    f"{self.split}_mF1": metrics["mF1"],
-                    f"{self.split}_mAcc": metrics["mAcc"],
-                    **{
-                        f"{self.split}_IoU_{c}": v
-                        for c, v in zip(self.valid_classes, metrics["IoU"])
-                    },
-                    **{
-                        f"{self.split}_F1_{c}": v
-                        for c, v in zip(self.valid_classes, metrics["F1"])
-                    },
-                    **{
-                        f"{self.split}_Precision_{c}": v
-                        for c, v in zip(self.valid_classes, metrics["Precision"])
-                    },
-                    **{
-                        f"{self.split}_Recall_{c}": v
-                        for c, v in zip(self.valid_classes, metrics["Recall"])
-                    },
-                }
-            )
+            log_data = {
+                f"{self.split}_mIoU": metrics["mIoU"],
+                f"{self.split}_mF1": metrics["mF1"],
+                f"{self.split}_mAcc": metrics["mAcc"],
+                **{
+                    f"{self.split}_IoU_{c}": v
+                    for c, v in zip(self.valid_classes, metrics["IoU"])
+                },
+                **{
+                    f"{self.split}_F1_{c}": v
+                    for c, v in zip(self.valid_classes, metrics["F1"])
+                },
+                **{
+                    f"{self.split}_Precision_{c}": v
+                    for c, v in zip(self.valid_classes, metrics["Precision"])
+                },
+                **{
+                    f"{self.split}_Recall_{c}": v
+                    for c, v in zip(self.valid_classes, metrics["Recall"])
+                },
+            }
+            if step is not None:
+                wandb.log(log_data, step=step)
+            else:
+                wandb.log(log_data)
 
 
 class RegEvaluator(Evaluator):
@@ -352,8 +367,16 @@ class RegEvaluator(Evaluator):
         super().__init__(val_loader, exp_dir, device, inference_mode, sliding_inference_batch, use_wandb)
 
     @torch.no_grad()
-    def evaluate(self, model, model_name='model', model_ckpt_path=None):
+    def evaluate(self, model, model_name='model', model_ckpt_path=None, wandb_step=None):
         t = time.time()
+        
+        # Use provided step or calculate a safe one
+        if wandb_step is not None:
+            safe_step = wandb_step
+        else:
+            # Fallback: Calculate a safe WandB step that won't conflict with training steps
+            safe_step = 10000 + self.wandb_step_counter
+            self.wandb_step_counter += 1
 
         if model_ckpt_path is not None:
             model_dict = torch.load(model_ckpt_path, map_location=self.device)
@@ -371,6 +394,8 @@ class RegEvaluator(Evaluator):
 
         mse = torch.zeros(1, device=self.device)
 
+        # For visualization: log only the first batch
+        first_logged = False
         for batch_idx, data in enumerate(tqdm(self.val_loader, desc=tag)):
             image, target = data['image'], data['target']
             image = {k: v.to(self.device) for k, v in image.items()}
@@ -387,25 +412,47 @@ class RegEvaluator(Evaluator):
 
             mse += F.mse_loss(logits, target)
 
+            # Log interpretable regression images to wandb for the first batch only
+            if self.use_wandb and self.rank == 0 and not first_logged:
+                # Try to get band order from dataset if available
+                band_order = getattr(self.val_loader.dataset, 'band_order', None)
+                if band_order is None:
+                    # Fallback: try common Sentinel-2 bands
+                    band_order = [f'B{str(i).zfill(2)}' for i in range(1, 13)]
+                log_regression_images_wandb(
+                    {k: v.detach().cpu() for k, v in image.items()},
+                    target.detach().cpu(),
+                    logits.detach().cpu(),
+                    band_order,
+                    wandb,
+                    step=safe_step,
+                    prefix=self.split
+                )
+                first_logged = True
+
         torch.distributed.all_reduce(mse, op=torch.distributed.ReduceOp.SUM)
         mse = mse / len(self.val_loader)
 
         metrics = {"MSE": mse.item(), "RMSE": torch.sqrt(mse).item()}
-        self.log_metrics(metrics)
+        self.log_metrics(metrics, step=safe_step)
 
         used_time = time.time() - t
 
         return metrics, used_time
 
     @torch.no_grad()
-    def __call__(self, model, model_name='model', model_ckpt_path=None):
-        return self.evaluate(model, model_name, model_ckpt_path)
+    def __call__(self, model, model_name='model', model_ckpt_path=None, wandb_step=None):
+        return self.evaluate(model, model_name, model_ckpt_path, wandb_step)
 
-    def log_metrics(self, metrics):
+    def log_metrics(self, metrics, step=None):
         header = "------- MSE and RMSE --------\n"
         mse = "-------------------\n" + 'MSE \t{:>7}'.format('%.3f' % metrics['MSE']) + '\n'
         rmse = "-------------------\n" + 'RMSE \t{:>7}'.format('%.3f' % metrics['RMSE'])
         self.logger.info(header + mse + rmse)
 
         if self.use_wandb and self.rank == 0:
-            wandb.log({f"{self.split}_MSE": metrics["MSE"], f"{self.split}_RMSE": metrics["RMSE"]})
+            log_data = {f"{self.split}_MSE": metrics["MSE"], f"{self.split}_RMSE": metrics["RMSE"]}
+            if step is not None:
+                wandb.log(log_data, step=step)
+            else:
+                wandb.log(log_data)
