@@ -1,9 +1,9 @@
 _target_: pangaea.datasets.agbd.AGBD
 dataset_name: AGBD
-root_path: /scratch/reimannj/pangaea_agbd_integration_final/data/agbd
-hdf5_dir: /scratch/reimannj/pangaea_agbd_integration_final/data/agbd
+root_path: /cluster/work/igp_psr/gsialelli/Data/patches
+hdf5_dir: /cluster/work/igp_psr/gsialelli/Data/patches
 hdf5_pattern: data_subset-*-v4_*-20.h5
-split_files: /scratch/reimannj/pangaea_agbd_integration_final/data/agbd
+split_files: /cluster/work/igp_psr/gsialelli/Data/AGB
 label_group: GEDI
 label_name: agbd
 
@@ -25,7 +25,7 @@ bands:
   sar: [VV, VH]
   auxiliary: [DEM, CH_ch, CH_std, LC_1, LC_2, S2_SCL]
 
-# Normalization statistics from diagnostic logs
+# Normalization statistics from diagnostic logs (from existing agbd.yaml)
 data_mean:
   optical: [0.12478869, 0.13480005, 0.16031432, 0.1532097, 0.20312776, 0.32636437, 0.36605212, 0.3811653, 0.3910436, 0.3910644, 0.2917373, 0.21169408]
   sar: [-10.381429, -16.722847]
@@ -45,3 +45,9 @@ data_max:
   optical: [1.8808, 2.1776, 2.12, 2.0032, 1.7502, 1.7245, 1.7149, 1.7488, 1.688, 1.7915, 1.648, 1.6775]
   sar: [13.329468, 11.688309]
   auxiliary: [5205.0, 61.0, 254.0, 126.0, 126.0, 4.0]
+
+# Euler cluster specific settings
+cache_dir: ${oc.env:TMPDIR,/cluster/scratch/reimannj}/agbd_cache
+num_workers: 4
+prefetch_factor: 2
+pin_memory: true

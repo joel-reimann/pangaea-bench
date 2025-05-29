@@ -1,224 +1,0 @@
-INFO - 05/26/25 14:48:26 - 0:00:00 - ============ Initialized logger ============
-INFO - 05/26/25 14:48:26 - 0:00:00 - 'batch_size': 8,
-                                      'ckpt_dir': None,
-                                      'criterion': {'_target_': 'torch.nn.MSELoss'},
-                                      'data_replicate': 1,
-                                      'dataset': {'_target_': 'pangaea.datasets.agbd.AGBD',
-                                                  'bands': {'auxiliary': ['DEM', 'CH_ch', 'CH_std', 'LC_1', 'LC_2',
-                                                                          'S2_SCL'],
-                                                            'optical': ['B01', 'B02', 'B03', 'B04', 'B05', 'B06',
-                                                                        'B07', 'B08', 'B8A', 'B09', 'B11', 'B12'],
-                                                            'sar': ['HH', 'HV']},
-                                                  'classes': ['regression'],
-                                                  'data_max': {'auxiliary': [5205.0, 61.0, 254.0, 126.0, 126.0, 4.0],
-                                                               'optical': [1.8808, 2.1776, 2.12, 2.0032, 1.7502,
-                                                                           1.7245, 1.7149, 1.7488, 1.688, 1.7915,
-                                                                           1.648, 1.6775],
-                                                               'sar': [13.329468, 11.688309]},
-                                                  'data_mean': {'auxiliary': [604.6373, 9.736144, 7.9882116, 85.912,
-                                                                              85.912, 4.0],
-                                                                'optical': [0.12478869, 0.13480005, 0.16031432,
-                                                                            0.1532097, 0.20312776, 0.32636437,
-                                                                            0.36605212, 0.3811653, 0.3910436,
-                                                                            0.3910644, 0.2917373, 0.21169408],
-                                                                'sar': [-10.381429, -16.722847]},
-                                                  'data_min': {'auxiliary': [-82.0, 0.0, 0.0, 40.0, 40.0, 4.0],
-                                                               'optical': [0.0001, 0.0001, 0.0001, 0.0001, 0.0422,
-                                                                           0.0502, 0.0616, 0.0001, 0.055, 0.0012,
-                                                                           0.0953, 0.0975],
-                                                               'sar': [-83.0, -83.0]},
-                                                  'data_std': {'auxiliary': [588.0209, 9.493601, 4.5494938, 39.0094,
-                                                                             39.0094, 1.0],
-                                                               'optical': [0.024433358, 0.02822557, 0.032037303,
-                                                                           0.038628064, 0.04205057, 0.07139242,
-                                                                           0.08555025, 0.092815965, 0.0896364,
-                                                                           0.0836445, 0.07472579, 0.05880649],
-                                                               'sar': [8.561741, 8.718428]},
-                                                  'dataset_name': 'AGBD',
-                                                  'distribution': [1.0],
-                                                  'hdf5_dir': '/scratch/reimannj/pangaea_agbd_integration_final/data/agbd',
-                                                  'hdf5_pattern': 'data_subset-*-v4_*-20.h5',
-                                                  'ignore_index': -1,
-                                                  'img_size': 25,
-                                                  'label_group': 'GEDI',
-                                                  'label_name': 'agbd',
-                                                  'multi_modal': True,
-                                                  'multi_temporal': False,
-                                                  'num_classes': 1,
-                                                  'root_path': '/scratch/reimannj/pangaea_agbd_integration_final/data/agbd',
-                                                  'split_files': '/scratch/reimannj/pangaea_agbd_integration_final/data/agbd'},
-                                      'decoder': {'_target_': 'pangaea.decoders.upernet.RegUPerNet',
-                                                  'channels': 512,
-                                                  'encoder': None,
-                                                  'finetune': '${finetune}'},
-                                      'encoder': {'_target_': 'pangaea.encoders.scalemae_encoder.ScaleMAE_Encoder',
-                                                  'depth': 24,
-                                                  'download_url': 'https://github.com/bair-climate-initiative/scale-mae/releases/download/base-800/scalemae-vitlarge-800.pth',
-                                                  'embed_dim': 1024,
-                                                  'encoder_weights': './pretrained_models/scalemae-vitlarge-800.pth',
-                                                  'in_chans': 3,
-                                                  'input_bands': {'optical': ['B4', 'B3', 'B2']},
-                                                  'input_res': 1.0,
-                                                  'input_size': 224,
-                                                  'mlp_ratio': 4,
-                                                  'num_heads': 16,
-                                                  'output_dim': 1024,
-                                                  'output_layers': [7, 11, 15, 23],
-                                                  'patch_size': 16,
-                                                  'qkv_bias': True},
-                                      'finetune': False,
-                                      'limited_label_strategy': 'random',
-                                      'limited_label_test': 0.0001,
-                                      'limited_label_train': 0.0001,
-                                      'limited_label_val': 0.0001,
-                                      'lr_scheduler': {'_target_': 'pangaea.utils.schedulers.MultiStepLR',
-                                                       'lr_milestones': [0.6, 0.9],
-                                                       'optimizer': None,
-                                                       'total_iters': None},
-                                      'num_workers': 4,
-                                      'optimizer': {'_target_': 'torch.optim.AdamW',
-                                                    'betas': [0.9, 0.999],
-                                                    'lr': 0.0001,
-                                                    'params': None,
-                                                    'weight_decay': 0.05},
-                                      'preprocessing': {'test': {'_target_': 'pangaea.engine.data_preprocessor.Preprocessor',
-                                                                 'preprocessor_cfg': [{'_target_': 'pangaea.engine.data_preprocessor.ResizeToEncoder'},
-                                                                                      {'_target_': 'pangaea.engine.data_preprocessor.BandFilter'},
-                                                                                      {'_target_': 'pangaea.engine.data_preprocessor.NormalizeMinMax'},
-                                                                                      {'_target_': 'pangaea.engine.data_preprocessor.BandPadding'}]},
-                                                        'train': {'_target_': 'pangaea.engine.data_preprocessor.Preprocessor',
-                                                                  'preprocessor_cfg': [{'_target_': 'pangaea.engine.data_preprocessor.ResizeToEncoder'},
-                                                                                       {'_target_': 'pangaea.engine.data_preprocessor.BandFilter'},
-                                                                                       {'_target_': 'pangaea.engine.data_preprocessor.NormalizeMinMax'},
-                                                                                       {'_target_': 'pangaea.engine.data_preprocessor.BandPadding'}]},
-                                                        'val': {'_target_': 'pangaea.engine.data_preprocessor.Preprocessor',
-                                                                'preprocessor_cfg': [{'_target_': 'pangaea.engine.data_preprocessor.ResizeToEncoder'},
-                                                                                     {'_target_': 'pangaea.engine.data_preprocessor.BandFilter'},
-                                                                                     {'_target_': 'pangaea.engine.data_preprocessor.NormalizeMinMax'},
-                                                                                     {'_target_': 'pangaea.engine.data_preprocessor.BandPadding'}]}},
-                                      'seed': 234,
-                                      'stratification_bins': 3,
-                                      'task': {'evaluator': {'_target_': 'pangaea.engine.evaluator.RegEvaluator',
-                                                             'device': None,
-                                                             'exp_dir': None,
-                                                             'inference_mode': 'sliding',
-                                                             'sliding_inference_batch': 8,
-                                                             'use_wandb': False,
-                                                             'val_loader': None},
-                                               'trainer': {'_target_': 'pangaea.engine.trainer.RegTrainer',
-                                                           'best_metric_key': 'MSE',
-                                                           'ckpt_interval': 20,
-                                                           'criterion': None,
-                                                           'device': None,
-                                                           'eval_interval': 999,
-                                                           'evaluator': None,
-                                                           'exp_dir': None,
-                                                           'log_interval': 5,
-                                                           'lr_scheduler': None,
-                                                           'model': None,
-                                                           'n_epochs': 1,
-                                                           'optimizer': None,
-                                                           'precision': 'fp32',
-                                                           'train_loader': None,
-                                                           'use_wandb': False}},
-                                      'test_batch_size': 8,
-                                      'test_num_workers': 2,
-                                      'train': True,
-                                      'use_final_ckpt': False,
-                                      'use_wandb': False,
-                                      'wandb_run_id': None,
-                                      'work_dir': ''
-INFO - 05/26/25 14:48:26 - 0:00:00 - The experiment is stored in 20250526_144826_514130_scalemae_reg_upernet_agbd
-                                     
-INFO - 05/26/25 14:48:26 - 0:00:00 - Device used: cuda:0
-/scratch/reimannj5/pangaea-bench/pangaea/encoders/scalemae_encoder.py:139: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
-  pretrained_model = torch.load(self.encoder_weights, map_location="cpu")["model"]
-INFO - 05/26/25 14:48:32 - 0:00:05 - Built ScaleMAE.
-INFO - 05/26/25 14:48:32 - 0:00:06 - Built Reg_UPerNet for with ScaleMAE_Encoder encoder.
-INFO - 05/26/25 14:48:33 - 0:00:07 - Creating a subset of the train dataset using random strategy, with 0.01% of labels utilized.
-INFO - 05/26/25 14:48:33 - 0:00:07 - Creating a subset of the val dataset using random strategy, with 0.01% of labels utilized.
-INFO - 05/26/25 14:48:33 - 0:00:07 - Built AGBD dataset.
-INFO - 05/26/25 14:48:33 - 0:00:07 - Total number of train patches: 994
-                                     Total number of validation patches: 268
-                                     
-/scratch/reimannj5/pangaea-bench/pangaea/engine/trainer.py:90: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
-  self.scaler = torch.cuda.amp.GradScaler("cuda", enabled=self.enable_mixed_precision)
-Evaluating epoch 0 on val set:   0%|          | 0/34 [00:00<?, ?it/s]Evaluating epoch 0 on val set:   3%|▎         | 1/34 [00:00<00:24,  1.36it/s]Evaluating epoch 0 on val set:   9%|▉         | 3/34 [00:01<00:10,  3.00it/s]Evaluating epoch 0 on val set:  12%|█▏        | 4/34 [00:01<00:10,  2.92it/s]Evaluating epoch 0 on val set:  15%|█▍        | 5/34 [00:01<00:10,  2.88it/s]Evaluating epoch 0 on val set:  18%|█▊        | 6/34 [00:02<00:09,  2.84it/s]Evaluating epoch 0 on val set:  21%|██        | 7/34 [00:02<00:09,  2.82it/s]Evaluating epoch 0 on val set:  24%|██▎       | 8/34 [00:02<00:09,  2.80it/s]Evaluating epoch 0 on val set:  26%|██▋       | 9/34 [00:03<00:08,  2.79it/s]Evaluating epoch 0 on val set:  29%|██▉       | 10/34 [00:03<00:08,  2.78it/s]Evaluating epoch 0 on val set:  32%|███▏      | 11/34 [00:04<00:08,  2.77it/s]Evaluating epoch 0 on val set:  35%|███▌      | 12/34 [00:04<00:07,  2.77it/s]Evaluating epoch 0 on val set:  38%|███▊      | 13/34 [00:04<00:07,  2.76it/s]Evaluating epoch 0 on val set:  41%|████      | 14/34 [00:05<00:07,  2.77it/s]Evaluating epoch 0 on val set:  44%|████▍     | 15/34 [00:05<00:06,  2.78it/s]Evaluating epoch 0 on val set:  47%|████▋     | 16/34 [00:05<00:06,  2.77it/s]Evaluating epoch 0 on val set:  50%|█████     | 17/34 [00:06<00:06,  2.76it/s]Evaluating epoch 0 on val set:  53%|█████▎    | 18/34 [00:06<00:05,  2.77it/s]Evaluating epoch 0 on val set:  56%|█████▌    | 19/34 [00:06<00:05,  2.76it/s]Evaluating epoch 0 on val set:  59%|█████▉    | 20/34 [00:07<00:05,  2.77it/s]Evaluating epoch 0 on val set:  62%|██████▏   | 21/34 [00:07<00:04,  2.76it/s]Evaluating epoch 0 on val set:  65%|██████▍   | 22/34 [00:07<00:04,  2.76it/s]Evaluating epoch 0 on val set:  68%|██████▊   | 23/34 [00:08<00:03,  2.76it/s]Evaluating epoch 0 on val set:  71%|███████   | 24/34 [00:08<00:03,  2.77it/s]Evaluating epoch 0 on val set:  74%|███████▎  | 25/34 [00:09<00:03,  2.77it/s]Evaluating epoch 0 on val set:  76%|███████▋  | 26/34 [00:09<00:02,  2.77it/s]Evaluating epoch 0 on val set:  79%|███████▉  | 27/34 [00:09<00:02,  2.77it/s]Evaluating epoch 0 on val set:  82%|████████▏ | 28/34 [00:10<00:02,  2.76it/s]Evaluating epoch 0 on val set:  85%|████████▌ | 29/34 [00:10<00:01,  2.76it/s]Evaluating epoch 0 on val set:  88%|████████▊ | 30/34 [00:10<00:01,  2.76it/s]Evaluating epoch 0 on val set:  91%|█████████ | 31/34 [00:11<00:01,  2.76it/s]Evaluating epoch 0 on val set:  94%|█████████▍| 32/34 [00:11<00:00,  2.75it/s]Evaluating epoch 0 on val set:  97%|█████████▋| 33/34 [00:11<00:00,  2.76it/s]Evaluating epoch 0 on val set: 100%|██████████| 34/34 [00:12<00:00,  2.73it/s]Evaluating epoch 0 on val set: 100%|██████████| 34/34 [00:12<00:00,  2.74it/s]
-INFO - 05/26/25 14:48:46 - 0:00:19 - ------- MSE and RMSE --------
-                                     -------------------
-                                     MSE 	  1.083
-                                     -------------------
-                                     RMSE 	  1.041
-INFO - 05/26/25 14:48:47 - 0:00:21 - Epoch 0 | Training checkpoint saved at 20250526_144826_514130_scalemae_reg_upernet_agbd/checkpoint__best.pth
-INFO - 05/26/25 14:48:47 - 0:00:21 - ============ Starting epoch 0 ... ============
-INFO - 05/26/25 14:48:56 - 0:00:30 - Epoch [0-5/124]	ETA [00h03m33s|00h03m20s]	Time [1.688|1.223]	Loss 0.9842 (1.9097)	lr 1.000e-04
-                                      Training metrics: MSE   0.984 (  1.910)
-INFO - 05/26/25 14:49:02 - 0:00:36 - Epoch [0-10/124]	ETA [00h03m17s|00h03m04s]	Time [1.620|0.989]	Loss 0.7029 (1.5761)	lr 1.000e-04
-                                      Training metrics: MSE   0.703 (  1.576)
-INFO - 05/26/25 14:49:08 - 0:00:41 - Epoch [0-15/124]	ETA [00h02m35s|00h02m23s]	Time [1.314|0.834]	Loss 1.9499 (1.6515)	lr 1.000e-04
-                                      Training metrics: MSE   1.950 (  1.652)
-INFO - 05/26/25 14:49:13 - 0:00:46 - Epoch [0-20/124]	ETA [00h02m28s|00h02m15s]	Time [1.305|0.748]	Loss 0.7793 (1.6052)	lr 1.000e-04
-                                      Training metrics: MSE   0.779 (  1.605)
-INFO - 05/26/25 14:49:23 - 0:00:57 - Epoch [0-25/124]	ETA [00h02m11s|00h01m59s]	Time [1.203|0.931]	Loss 1.3586 (1.5039)	lr 1.000e-04
-                                      Training metrics: MSE   1.359 (  1.504)
-W0526 14:49:31.887000 4023231 site-packages/torch/distributed/elastic/agent/server/api.py:704] Received Signals.SIGINT death signal, shutting down workers
-W0526 14:49:31.888000 4023231 site-packages/torch/distributed/elastic/multiprocessing/api.py:897] Sending process 4023252 closing signal SIGINT
-[rank0]: Traceback (most recent call last):
-[rank0]:   File "/scratch/reimannj5/pangaea-bench/pangaea/run.py", line 328, in <module>
-[rank0]:     main()
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/hydra/main.py", line 94, in decorated_main
-[rank0]:     _run_hydra(
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/hydra/_internal/utils.py", line 394, in _run_hydra
-[rank0]:     _run_app(
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/hydra/_internal/utils.py", line 457, in _run_app
-[rank0]:     run_and_report(
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/hydra/_internal/utils.py", line 220, in run_and_report
-[rank0]:     return func()
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/hydra/_internal/utils.py", line 458, in <lambda>
-[rank0]:     lambda: hydra.run(
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/hydra/_internal/hydra.py", line 119, in run
-[rank0]:     ret = run_job(
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/hydra/core/utils.py", line 186, in run_job
-[rank0]:     ret.return_value = task_function(task_cfg)
-[rank0]:   File "/scratch/reimannj5/pangaea-bench/pangaea/run.py", line 270, in main
-[rank0]:     trainer.train()
-[rank0]:   File "/scratch/reimannj5/pangaea-bench/pangaea/engine/trainer.py", line 115, in train
-[rank0]:     self.train_one_epoch(epoch)
-[rank0]:   File "/scratch/reimannj5/pangaea-bench/pangaea/engine/trainer.py", line 135, in train_one_epoch
-[rank0]:     for batch_idx, data in enumerate(self.train_loader):
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 701, in __next__
-[rank0]:     data = self._next_data()
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1448, in _next_data
-[rank0]:     idx, data = self._get_data()
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1402, in _get_data
-[rank0]:     success, data = self._try_get_data()
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/utils/data/dataloader.py", line 1243, in _try_get_data
-[rank0]:     data = self._data_queue.get(timeout=timeout)
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/queue.py", line 180, in get
-[rank0]:     self.not_empty.wait(remaining)
-[rank0]:   File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/threading.py", line 324, in wait
-[rank0]:     gotit = waiter.acquire(True, timeout)
-[rank0]: KeyboardInterrupt
-[rank0]:[W526 14:49:32.624568764 ProcessGroupNCCL.cpp:1250] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
-Traceback (most recent call last):
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/bin/torchrun", line 33, in <module>
-    sys.exit(load_entry_point('torch==2.5.1', 'console_scripts', 'torchrun')())
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
-    return f(*args, **kwargs)
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/distributed/run.py", line 919, in main
-    run(args)
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/distributed/run.py", line 910, in run
-    elastic_launch(
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 138, in __call__
-    return launch_agent(self._config, self._entrypoint, list(args))
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/distributed/launcher/api.py", line 260, in launch_agent
-    result = agent.run()
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/distributed/elastic/metrics/api.py", line 137, in wrapper
-    result = f(*args, **kwargs)
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py", line 696, in run
-    result = self._invoke_run(role)
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/distributed/elastic/agent/server/api.py", line 855, in _invoke_run
-    time.sleep(monitor_interval)
-  File "/scratch/reimannj/miniconda3/envs/pangaea-bench/lib/python3.10/site-packages/torch/distributed/elastic/multiprocessing/api.py", line 84, in _terminate_process_handler
-    raise SignalException(f"Process {os.getpid()} got signal: {sigval}", sigval=sigval)
-torch.distributed.elastic.multiprocessing.api.SignalException: Process 4023231 got signal: 2
