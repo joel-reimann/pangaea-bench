@@ -32,6 +32,9 @@ from pangaea.utils.utils import (
     seed_worker,
 )
 
+from pangaea.utils.preload import PreloadedDataset
+
+
 
 def get_exp_info(hydra_config: HydraConf) -> dict[str, str]:
     """Create a unique experiment name based on the choices made in the config.
@@ -173,6 +176,16 @@ def main(cfg: DictConfig) -> None:
         raw_train_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="train")
         raw_val_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="val")
 
+         # === RAM PRELOADING PATCH FOR AGBD VALIDATION ===
+        if (
+            os.environ.get("AGBD_RAM_PRELOAD", "0") == "1"
+            and hasattr(raw_val_dataset, "dataset_name")
+            and raw_val_dataset.dataset_name.lower() == "agbd"
+        ):
+            logger.info("[RAM PRELOADING ENABLED] Preloading AGBD validation set into RAM...")
+            raw_val_dataset = PreloadedDataset(raw_val_dataset)
+        # === END PATCH ===
+
         if 0 < cfg.limited_label_train < 1:
             indices = get_subset_indices(
                 raw_train_dataset,
@@ -196,7 +209,7 @@ def main(cfg: DictConfig) -> None:
             raw_val_dataset = GeoFMSubset(raw_val_dataset, indices)
 
         train_dataset = GeoFMDataset(
-            raw_train_dataset, train_preprocessor, cfg.data_replicate
+            raw_train_dataset, train_preprocessor, cfg.data_replicate #TODO check if we do ram loading for both? 
         )
         val_dataset = GeoFMDataset(
             raw_val_dataset, val_preprocessor, cfg.data_replicate

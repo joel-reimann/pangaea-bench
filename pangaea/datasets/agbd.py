@@ -202,40 +202,38 @@ class AGBD(Dataset):
         return self.length
 
     def __getitem__(self, n):
+        import time
+        t0 = time.time()
         file_name, tile_name, idx = find_index_for_chunk(self.index, n, self.length)
         f = self.handles[file_name]
+        t1 = time.time()
         
         # Initialize data list for auxiliary features
         auxiliary_data = []
         
         # S2 bands
         s2_bands = f[tile_name]['S2_bands'][idx].astype(np.float32)
+        t2 = time.time()
 
         # --- PATCH: Convert S2 bands to reflectance as in original AGBD code ---
         if 'Sentinel_metadata' in f[tile_name] and 'S2_boa_offset' in f[tile_name]['Sentinel_metadata']:
             s2_boa_offset = f[tile_name]['Sentinel_metadata']['S2_boa_offset'][idx]
         else:
             s2_boa_offset = 0
-
-        # [PATCH: S2_BANDS/BOA_OFFSET DTYPE SAFETY + DIAGNOSTIC]
         s2_bands = s2_bands.astype(np.float32)
         s2_boa_offset = np.array(s2_boa_offset).astype(np.float32)
-        # [END PATCH]
-
         s2_bands = (s2_bands - s2_boa_offset * 1000) / 10000
         s2_bands[s2_bands < 0] = 0
         s2_bands[s2_bands == 0] = 0
-        # --- END PATCH ---
-
         s2_bands = normalize_bands(s2_bands, self.norm_values['S2_bands'], self.s2_order, self.norm_strat, NODATAVALS['S2_bands'])
+        t3 = time.time()
         
         # ALOS bands
         alos_bands = f[tile_name]['ALOS_bands'][idx].astype(np.float32)
-
-        # Mask zeros and negatives before log10 to avoid divide by zero (caused crash)
         alos_bands = np.where(alos_bands <= 0, 1e-6, alos_bands)
         alos_bands = np.where(alos_bands == NODATAVALS['ALOS_bands'], -9999.0, 10 * np.log10(np.power(alos_bands, 2)) - 83.0)
         alos_bands = normalize_bands(alos_bands, self.norm_values['ALOS_bands'], self.alos_order, self.norm_strat, -9999.0)
+        t4 = time.time()
         
         # Load auxiliary features if available
         if len(self.auxiliary_bands) > 0:
@@ -244,25 +242,21 @@ class AGBD(Dataset):
                 dem = f[tile_name]['DEM'][idx].astype(np.float32)
                 dem = normalize_data(dem, self.norm_values['auxiliary']['DEM'], self.norm_strat, NODATAVALS['DEM'])
                 auxiliary_data.append(dem[..., np.newaxis])
-            
             # Canopy Height data
             if 'CH_ch' in self.auxiliary_bands:
                 ch = f[tile_name]['CH']['ch'][idx].astype(np.float32)
                 ch = normalize_data(ch, self.norm_values['auxiliary']['CH_ch'], self.norm_strat, NODATAVALS['CH'])
                 auxiliary_data.append(ch[..., np.newaxis])
-            
             if 'CH_std' in self.auxiliary_bands:
                 ch_std = f[tile_name]['CH']['std'][idx].astype(np.float32)
                 ch_std = normalize_data(ch_std, self.norm_values['auxiliary']['CH_std'], self.norm_strat, NODATAVALS['CH'])
                 auxiliary_data.append(ch_std[..., np.newaxis])
-            
             # Land Cover data with sin/cosine encoding
             if 'LC_1' in self.auxiliary_bands and 'LC_2' in self.auxiliary_bands:
                 lc = f[tile_name]['LC'][idx].astype(np.float32)
                 lc_cos, lc_sin, lc_prob = encode_lc(lc)
                 auxiliary_data.append(lc_cos[..., np.newaxis])
                 auxiliary_data.append(lc_sin[..., np.newaxis])
-            
             # Scene Classification Layer (S2_SCL)
             if 'S2_SCL' in self.auxiliary_bands:
                 if 'S2_SCL' in f[tile_name]:
@@ -270,34 +264,27 @@ class AGBD(Dataset):
                     scl = normalize_data(scl, self.norm_values['auxiliary']['S2_SCL'], self.norm_strat, None)
                     auxiliary_data.append(scl[..., np.newaxis])
                 else:
-                    # If SCL not available as separate dataset, try to extract from S2_bands
-                    # This is a fallback - in practice, SCL should be available separately
                     scl = np.zeros(self.patch_size, dtype=np.float32)
                     auxiliary_data.append(scl[..., np.newaxis])
+        t5 = time.time()
         
         # Target
         agbd = f[tile_name]['GEDI']['agbd'][idx]
-
-        # --- PATCH: Normalize target to match original AGBD code (images all black otherwise! check this though TODO) ---
         target_mean = getattr(self, 'data_mean', {}).get('target', 66.97265625)
         target_std = getattr(self, 'data_std', {}).get('target', 98.66587829589844)
         agbd = (agbd - target_mean) / target_std
         agbd = torch.full(self.patch_size, float(agbd), dtype=torch.float32)
+        t6 = time.time()
         
         # Build image dictionary - stack and return in PANGAEA format (add time dimension T=1)
         image = {
             'optical': torch.from_numpy(s2_bands).permute(2, 0, 1).unsqueeze(1).float(),
             'sar': torch.from_numpy(alos_bands).permute(2, 0, 1).unsqueeze(1).float()
         }
-        
-        # Add auxiliary features if available
         if auxiliary_data:
             auxiliary_stacked = np.concatenate(auxiliary_data, axis=-1)
             image['auxiliary'] = torch.from_numpy(auxiliary_stacked).permute(2, 0, 1).unsqueeze(1).float()
-        
-        # --- PATCH COORDINATE/INDEX METADATA ---
         metadata = {'tile_name': tile_name, 'patch_index': idx}
-        # Try to get lat/lon if available
         try:
             lat_offset = f[tile_name]['GEDI']['lat_offset'][idx]
             lat_decimal = f[tile_name]['GEDI']['lat_decimal'][idx]
@@ -309,6 +296,8 @@ class AGBD(Dataset):
             metadata['lon'] = lon
         except Exception:
             pass
-        # --- END PATCH COORDINATE/INDEX METADATA ---
-        
+        t7 = time.time()
+        # Print timing for first 10 samples only
+        if n < 10:
+            print(f"[AGBD __getitem__ timing] n={n} total={t7-t0:.3f}s | index={t1-t0:.3f}s | S2={t3-t2:.3f}s | ALOS={t4-t3:.3f}s | AUX={t5-t4:.3f}s | TARGET={t6-t5:.3f}s | FINAL={t7-t6:.3f}s")
         return {'image': image, 'target': agbd, 'metadata': metadata}

@@ -16,9 +16,9 @@ N_EPOCHS=1  # Increased for more meaningful results
 EVAL_INTERVAL=999
 
 # Limited label settings for comprehensive testing
-LIMITED_LABEL_TRAIN=0.001   # Increased for better model evaluation
-LIMITED_LABEL_VAL=0.001
-LIMITED_LABEL_TEST=0.001
+LIMITED_LABEL_TRAIN=1   # Increased for better model evaluation
+LIMITED_LABEL_VAL=1
+LIMITED_LABEL_TEST=1
 LIMITED_LABEL_STRATEGY="random"
 
 # Wandb settings

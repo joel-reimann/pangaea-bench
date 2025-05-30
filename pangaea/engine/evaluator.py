@@ -401,6 +401,8 @@ class RegEvaluator(Evaluator):
             image = {k: v.to(self.device) for k, v in image.items()}
             target = target.to(self.device)
 
+
+            # logits = target
             if self.inference_mode == "sliding":
                 input_size = model.module.encoder.input_size
                 logits = self.sliding_inference(model, image, input_size, output_shape=target.shape[-2:],
@@ -411,6 +413,8 @@ class RegEvaluator(Evaluator):
                 raise NotImplementedError((f"Inference mode {self.inference_mode} is not implemented."))
 
             mse += F.mse_loss(logits, target)
+
+            
 
             # Log interpretable regression images to wandb for the first batch only
             if self.use_wandb and self.rank == 0 and not first_logged:
