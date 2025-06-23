@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.abspath(os.path.join(__file__, '..', '..')))
+
 import hashlib
 import os as os
 import pathlib
@@ -28,6 +31,7 @@ from pangaea.utils.utils import (
     get_generator,
     seed_worker,
 )
+from pangaea.utils.preload import PreloadedDataset
 
 
 def get_exp_info(hydra_config: HydraConf) -> dict[str, str]:
@@ -170,6 +174,16 @@ def main(cfg: DictConfig) -> None:
         raw_train_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="train")
         raw_val_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="val")
 
+        # === RAM PRELOADING PATCH FOR AGBD VALIDATION ===
+        if (
+            os.environ.get("AGBD_RAM_PRELOAD", "0") == "1"
+            and hasattr(raw_val_dataset, "dataset_name")
+            and raw_val_dataset.dataset_name.lower() == "agbd"
+        ):
+            logger.info("[RAM PRELOADING ENABLED] Preloading AGBD validation set into RAM...")
+            raw_val_dataset = PreloadedDataset(raw_val_dataset)
+        # === END PATCH ===
+
         if 0 < cfg.limited_label_train < 1:
             indices = get_subset_indices(
                 raw_train_dataset,
@@ -243,7 +257,12 @@ def main(cfg: DictConfig) -> None:
         )
 
         val_evaluator: Evaluator = instantiate(
-            cfg.task.evaluator, val_loader=val_loader, exp_dir=exp_dir, device=device
+            cfg.task.evaluator,
+            val_loader=val_loader,
+            exp_dir=exp_dir,
+            device=device,
+            use_wandb=cfg.task.trainer.use_wandb,
+            visualize_every_n_batches=visualize_every_n_batches,
         )
         trainer: Trainer = instantiate(
             cfg.task.trainer,
@@ -272,6 +291,21 @@ def main(cfg: DictConfig) -> None:
 
     # get datasets
     raw_test_dataset: RawGeoFMDataset = instantiate(cfg.dataset, split="test")
+
+    # >>>>> INTEGRATION PATCH REMOVED FOR PRODUCTION: AGBD test set subsampling
+    # Optionally subsample the test set for rapid debugging, controlled by limited_label_test in config
+    if hasattr(cfg, "limited_label_test") and 0 < cfg.limited_label_test < 1:
+        indices = get_subset_indices(
+            raw_test_dataset,
+            task=task_name if train_run else cfg.task.get("name", "regression"),
+            strategy=cfg.limited_label_strategy if hasattr(cfg, "limited_label_strategy") else "random",
+            label_fraction=cfg.limited_label_test,
+            num_bins=cfg.stratification_bins if hasattr(cfg, "stratification_bins") else 3,
+            logger=logger,
+        )
+        raw_test_dataset = GeoFMSubset(raw_test_dataset, indices)
+    # <<<<< END INTEGRATION PATCH: AGBD test set subsampling
+
     test_dataset = GeoFMDataset(raw_test_dataset, test_preprocessor)
 
     test_loader = DataLoader(
@@ -285,7 +319,12 @@ def main(cfg: DictConfig) -> None:
         collate_fn=collate_fn,
     )
     test_evaluator: Evaluator = instantiate(
-        cfg.task.evaluator, val_loader=test_loader, exp_dir=exp_dir, device=device
+        cfg.task.evaluator,
+        val_loader=test_loader,
+        exp_dir=exp_dir,
+        device=device,
+        use_wandb=cfg.task.trainer.use_wandb,
+        visualize_every_n_batches=visualize_every_n_batches,
     )
 
     if cfg.use_final_ckpt:

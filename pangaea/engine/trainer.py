@@ -95,6 +95,8 @@ class Trainer:
             import wandb
 
             self.wandb = wandb
+        
+        self.global_step = 0  # Global step counter for WandB logging
 
     def train(self) -> None:
         """Train the model for n_epochs then evaluate the model and save the best model."""
@@ -102,7 +104,7 @@ class Trainer:
         for epoch in range(self.start_epoch, self.n_epochs):
             # train the network for one epoch
             if epoch % self.eval_interval == 0:
-                metrics, used_time = self.evaluator(self.model, f"epoch {epoch}")
+                metrics, used_time = self.evaluator(self.model, f"epoch {epoch}", wandb_step=self.global_step)
                 self.training_stats["eval_time"].update(used_time)
                 self.save_best_checkpoint(metrics, epoch)
 
@@ -114,7 +116,7 @@ class Trainer:
             if epoch % self.ckpt_interval == 0 and epoch != self.start_epoch:
                 self.save_model(epoch)
 
-        metrics, used_time = self.evaluator(self.model, "final model")
+        metrics, used_time = self.evaluator(self.model, "final model", wandb_step=self.global_step)
         self.training_stats["eval_time"].update(used_time)
         self.save_best_checkpoint(metrics, self.n_epochs)
 
@@ -172,8 +174,9 @@ class Trainer:
                             for k, v in self.training_metrics.items()
                         },
                     },
-                    step=epoch * len(self.train_loader) + batch_idx,
+                    step=self.global_step,
                 )
+                self.global_step += 1
 
             self.training_stats["batch_time"].update(time.time() - end_time)
             end_time = time.time()

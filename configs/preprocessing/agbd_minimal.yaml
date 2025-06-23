@@ -1,0 +1,23 @@
+# Minimal preprocessing for AGBD - optimized for performance
+# Only essential operations to maximize training speed
+
+train:
+    _target_: pangaea.engine.data_preprocessor.Preprocessor
+    preprocessor_cfg:
+        # Only keep the absolute essentials
+        - _target_: pangaea.engine.data_preprocessor.BandFilter
+        - _target_: pangaea.engine.data_preprocessor.BandPadding
+
+val:
+    _target_: pangaea.engine.data_preprocessor.Preprocessor
+    preprocessor_cfg:
+        # Only keep the absolute essentials
+        - _target_: pangaea.engine.data_preprocessor.BandFilter
+        - _target_: pangaea.engine.data_preprocessor.BandPadding
+
+test:
+    _target_: pangaea.engine.data_preprocessor.Preprocessor
+    preprocessor_cfg:
+        # Only keep the absolute essentials
+        - _target_: pangaea.engine.data_preprocessor.BandFilter
+        - _target_: pangaea.engine.data_preprocessor.BandPadding
